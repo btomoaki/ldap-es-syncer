@@ -1,0 +1,81 @@
+services:
+  # 1. OpenLDAP サーバー
+  ldap:
+    image: osixia/openldap:1.5.0
+    container_name: ldap-server
+    environment:
+      - LDAP_ORGANISATION=${LDAP_ORGANISATION}
+      - LDAP_DOMAIN=${LDAP_DOMAIN}
+      - LDAP_ADMIN_PASSWORD=${LDAP_PASSWORD}
+    ports:
+      - "389:389"
+      - "636:636"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+    networks:
+      - syncer-net
+
+  # phpLDAPadmin (LDAP管理用WebUI)
+  phpldapadmin:
+    image: osixia/phpldapadmin:0.9.0
+    container_name: phpldapadmin
+    environment:
+      - PHPLDAPADMIN_LDAP_HOSTS=${PHPLDAPADMIN_LDAP_HOSTS}
+      - PHPLDAPADMIN_HTTPS=${PHPLDAPADMIN_HTTPS}
+    ports:
+      - "8080:80"
+    depends_on:
+      - ldap
+    networks:
+      - syncer-net
+
+  # 2. Elasticsearch サーバー (Version: 8.8.1)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      # ELASTIC_PASSWORD (Elastic stack official docker guidelines)
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      # ローカル開発のためにセキュリティ（SSL/TLS, 認証）を無効化
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - syncer-net
+
+  # Kibana (Elasticsearch管理用WebUI - Version: 8.8.1)
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.1
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=${ELASTICSEARCH_HOSTS}
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - syncer-net
+
+volumes:
+  ldap_data:
+  ldap_config:
+  es_data:
+
+networks:
+  syncer-net:
+    driver: bridge
