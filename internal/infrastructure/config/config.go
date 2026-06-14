@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Config はアプリケーション設定全体の親構造体です。
@@ -15,8 +17,10 @@ type Config struct {
 
 // AppConfig はアプリケーションの基本動作（動作環境、ログレベル）の設定です。
 type AppConfig struct {
-	Env      string // e.g., "development", "production"
-	LogLevel string // e.g., "info", "debug", "error"
+	Env          string        // e.g., "development", "production"
+	LogLevel     string        // e.g., "info", "debug", "error"
+	DaemonMode   bool          // e.g., true, false
+	SyncInterval time.Duration // e.g., 1 * time.Hour
 }
 
 // SourceConfig は同期元LDAPサーバーの接続設定です。
@@ -78,9 +82,23 @@ func (c *Config) GetTargetConfig() *TargetConfig {
 // -- 各設定セグメントのロードヘルパー関数 --
 
 func loadAppConfig() (*AppConfig, error) {
+	daemonModeStr := getEnv("DAEMON_MODE", "true")
+	daemonMode, err := strconv.ParseBool(daemonModeStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DAEMON_MODE: %w", err)
+	}
+
+	intervalStr := getEnv("SYNC_INTERVAL", "1h")
+	interval, err := time.ParseDuration(intervalStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SYNC_INTERVAL: %w", err)
+	}
+
 	return &AppConfig{
-		Env:      getEnv("APP_ENV", "development"),
-		LogLevel: getEnv("LOG_LEVEL", "info"),
+		Env:          getEnv("APP_ENV", "development"),
+		LogLevel:     getEnv("LOG_LEVEL", "info"),
+		DaemonMode:   daemonMode,
+		SyncInterval: interval,
 	}, nil
 }
 
@@ -125,7 +143,7 @@ func loadTargetConfig() (*TargetConfig, error) {
 	return &TargetConfig{
 		Addresses: addresses,
 		Username:  os.Getenv("ES_USERNAME"), // セキュリティ無効化時は空許容
-		Password:  os.Getenv("ES_PASSWORD"), // セキュリティ無効化時は空許容
+		Password:  os.Getenv("ELASTIC_PASSWORD"), // セキュリティ無効化時は空許容
 		IndexName: indexName,
 	}, nil
 }

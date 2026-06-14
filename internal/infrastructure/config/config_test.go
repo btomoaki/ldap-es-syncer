@@ -4,6 +4,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestNewConfig_MissingRequired(t *testing.T) {
@@ -29,9 +30,11 @@ func TestNewConfig_Success(t *testing.T) {
 	// オプション・デフォルト上書き設定
 	os.Setenv("APP_ENV", "production")
 	os.Setenv("LOG_LEVEL", "debug")
+	os.Setenv("DAEMON_MODE", "false")
+	os.Setenv("SYNC_INTERVAL", "30s")
 	os.Setenv("ES_INDEX_NAME", "custom-users")
 	os.Setenv("ES_USERNAME", "elastic")
-	os.Setenv("ES_PASSWORD", "changeme")
+	os.Setenv("ELASTIC_PASSWORD", "changeme")
 
 	cfg, err := NewConfig()
 	if err != nil {
@@ -44,6 +47,12 @@ func TestNewConfig_Success(t *testing.T) {
 	}
 	if cfg.App.LogLevel != "debug" {
 		t.Errorf("expected App.LogLevel to be 'debug', got %q", cfg.App.LogLevel)
+	}
+	if cfg.App.DaemonMode != false {
+		t.Errorf("expected App.DaemonMode to be false, got %v", cfg.App.DaemonMode)
+	}
+	if cfg.App.SyncInterval != 30*time.Second {
+		t.Errorf("expected App.SyncInterval to be 30s, got %v", cfg.App.SyncInterval)
 	}
 
 	// SourceConfig 検証
@@ -87,6 +96,13 @@ func TestConfig_Getters(t *testing.T) {
 	cfg, err := NewConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.App.DaemonMode != true {
+		t.Errorf("expected default App.DaemonMode to be true, got %v", cfg.App.DaemonMode)
+	}
+	if cfg.App.SyncInterval != 1*time.Hour {
+		t.Errorf("expected default App.SyncInterval to be 1h, got %v", cfg.App.SyncInterval)
 	}
 
 	if cfg.GetAppConfig() != cfg.App {

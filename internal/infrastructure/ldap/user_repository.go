@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"ldap-es-syncer/internal/domain/model"
+	"ldap-es-syncer/internal/domain/repository"
 	"ldap-es-syncer/internal/infrastructure/config"
 	"github.com/go-ldap/ldap/v3"
 )
@@ -16,7 +17,7 @@ type LdapUserRepository struct {
 
 // NewLdapUserRepository は LdapUserRepository のコンストラクタです。
 // 設定全体ではなく、必要な SourceConfig のみを限定注入（Config Injection）します。
-func NewLdapUserRepository(cfg *config.SourceConfig) *LdapUserRepository {
+func NewLdapUserRepository(cfg *config.SourceConfig) repository.SourceRepository {
 	return &LdapUserRepository{
 		cfg: cfg,
 	}

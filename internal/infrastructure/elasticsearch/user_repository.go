@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"ldap-es-syncer/internal/domain/model"
+	"ldap-es-syncer/internal/domain/repository"
 	"ldap-es-syncer/internal/infrastructure/config"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
@@ -21,7 +22,7 @@ type EsUserRepository struct {
 
 // NewEsUserRepository は EsUserRepository のコンストラクタです。
 // 設定全体ではなく、必要な TargetConfig のみを限定注入（Config Injection）します。
-func NewEsUserRepository(cfg *config.TargetConfig) (*EsUserRepository, error) {
+func NewEsUserRepository(cfg *config.TargetConfig) (repository.TargetRepository, error) {
 	esCfg := elasticsearch.Config{
 		Addresses: cfg.Addresses,
 		Username:  cfg.Username,
