@@ -41,7 +41,12 @@ func NewContainer() (*Container, error) {
 	}
 
 	// 4. ユースケースの構築
-	syncUC := usecase.NewSyncUserUseCase(sourceRepo, targetRepo)
+	syncUC := usecase.NewSyncUserUseCase(
+		sourceRepo,
+		targetRepo,
+		cfg.GetSourceConfig().FinalFilter,
+		cfg.GetTargetConfig().ExcludedUsers,
+	)
 
 	return &Container{
 		cfg:        cfg,

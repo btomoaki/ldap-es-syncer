@@ -137,3 +137,84 @@ func (r *EsUserRepository) initializeIndex(ctx context.Context) error {
 	return nil
 }
 
+// GetAllUserIDs は、Elasticsearchに登録されている全ユーザーのIDリストを取得します。
+func (r *EsUserRepository) GetAllUserIDs(ctx context.Context) ([]string, error) {
+	var buf bytes.Buffer
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"match_all": map[string]interface{}{},
+		},
+		"_source": []string{"ID"},
+		"size":    10000,
+	}
+	if err := json.NewEncoder(&buf).Encode(query); err != nil {
+		return nil, fmt.Errorf("failed to encode query: %w", err)
+	}
+
+	res, err := r.client.Search(
+		r.client.Search.WithContext(ctx),
+		r.client.Search.WithIndex(r.index),
+		r.client.Search.WithBody(&buf),
+		r.client.Search.WithTrackTotalHits(true),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("elasticsearch search request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("elasticsearch search failed: status=%s, body=%s", res.Status(), string(body))
+	}
+
+	var searchRes struct {
+		Hits struct {
+			Hits []struct {
+				ID string `json:"_id"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&searchRes); err != nil {
+		return nil, fmt.Errorf("failed to decode search response: %w", err)
+	}
+
+	ids := make([]string, len(searchRes.Hits.Hits))
+	for i, hit := range searchRes.Hits.Hits {
+		ids[i] = hit.ID
+	}
+
+	return ids, nil
+}
+
+// GetUser は、指定されたIDのユーザー情報を Elasticsearch から取得します。
+func (r *EsUserRepository) GetUser(ctx context.Context, id string) (*model.User, error) {
+	res, err := r.client.Get(
+		r.index,
+		id,
+		r.client.Get.WithContext(ctx),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("elasticsearch get request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == 404 {
+		return nil, fmt.Errorf("user not found: %s", id)
+	}
+
+	if res.IsError() {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("elasticsearch get request failed: status=%s, body=%s", res.Status(), string(body))
+	}
+
+	var hit struct {
+		Source model.User `json:"_source"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&hit); err != nil {
+		return nil, fmt.Errorf("failed to decode user: %w", err)
+	}
+
+	return &hit.Source, nil
+}
+

@@ -39,12 +39,12 @@ func (r *LdapUserRepository) FetchUsers(ctx context.Context) ([]*model.User, err
 	}
 
 	// ユーザー検索リクエストの構築
-	// uid, cn, mail, userPassword 属性を取得
+	// 設定された属性および finalFilter を使用
 	searchRequest := ldap.NewSearchRequest(
 		r.cfg.BaseDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		"(objectClass=person)",
-		[]string{"dn", "cn", "mail", "uid", "userPassword"},
+		r.cfg.FinalFilter,
+		[]string{"dn", r.cfg.MapUsername, r.cfg.MapEmail, r.cfg.MapUID, "userPassword"},
 		nil,
 	)
 
@@ -56,17 +56,20 @@ func (r *LdapUserRepository) FetchUsers(ctx context.Context) ([]*model.User, err
 
 	var users []*model.User
 	for _, entry := range sr.Entries {
-		uid := entry.GetAttributeValue("uid")
+		uid := entry.GetAttributeValue(r.cfg.MapUID)
 		if uid == "" {
-			// uid属性が無い場合は cn をIDフォールバックとして使用
-			uid = entry.GetAttributeValue("cn")
+			// UID属性が無い場合は Username 属性をIDフォールバックとして使用
+			uid = entry.GetAttributeValue(r.cfg.MapUsername)
 		}
-		cn := entry.GetAttributeValue("cn")
-		mail := entry.GetAttributeValue("mail")
+		cn := entry.GetAttributeValue(r.cfg.MapUsername)
+		mail := entry.GetAttributeValue(r.cfg.MapEmail)
 		password := entry.GetAttributeValue("userPassword")
 
-		// ドメインモデルのコンストラクタを呼び出す（内部でパスワード検証・状態設定）
-		users = append(users, model.NewUser(uid, cn, mail, password))
+		// ドメインモデルのコンストラクタを呼び出す
+		user := model.NewUser(uid, cn, mail, password)
+		// LDAP生存者は明示的に有効とみなす
+		user.IsActive = true
+		users = append(users, user)
 	}
 
 	return users, nil

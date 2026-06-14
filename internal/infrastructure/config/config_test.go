@@ -36,6 +36,14 @@ func TestNewConfig_Success(t *testing.T) {
 	os.Setenv("ES_USERNAME", "elastic")
 	os.Setenv("ELASTIC_PASSWORD", "changeme")
 
+	// Step 9 新規設定
+	os.Setenv("LDAP_ACTIVE_USER", "(userPassword=*)")
+	os.Setenv("LDAP_FILTER", "(&(objectClass=inetOrgPerson)({LDAP_ACTIVE_USER}))")
+	os.Setenv("LDAP_MAP_UID", "uid")
+	os.Setenv("LDAP_MAP_USERNAME", "cn")
+	os.Setenv("LDAP_MAP_EMAIL", "mail")
+	os.Setenv("ES_EXCLUDED_USERS", "elastic,kibana_system,test_user")
+
 	cfg, err := NewConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -68,6 +76,25 @@ func TestNewConfig_Success(t *testing.T) {
 	if cfg.Source.BaseDN != "dc=example,dc=org" {
 		t.Errorf("expected Source.BaseDN to be 'dc=example,dc=org', got %q", cfg.Source.BaseDN)
 	}
+	if cfg.Source.ActiveUser != "(userPassword=*)" {
+		t.Errorf("expected Source.ActiveUser to be '(userPassword=*)', got %q", cfg.Source.ActiveUser)
+	}
+	if cfg.Source.Filter != "(&(objectClass=inetOrgPerson)({LDAP_ACTIVE_USER}))" {
+		t.Errorf("expected Source.Filter to be '(&(objectClass=inetOrgPerson)({LDAP_ACTIVE_USER}))', got %q", cfg.Source.Filter)
+	}
+	expectedFinalFilter := "(&(objectClass=inetOrgPerson)((userPassword=*)))"
+	if cfg.Source.FinalFilter != expectedFinalFilter {
+		t.Errorf("expected Source.FinalFilter to be %q, got %q", expectedFinalFilter, cfg.Source.FinalFilter)
+	}
+	if cfg.Source.MapUID != "uid" {
+		t.Errorf("expected Source.MapUID to be 'uid', got %q", cfg.Source.MapUID)
+	}
+	if cfg.Source.MapUsername != "cn" {
+		t.Errorf("expected Source.MapUsername to be 'cn', got %q", cfg.Source.MapUsername)
+	}
+	if cfg.Source.MapEmail != "mail" {
+		t.Errorf("expected Source.MapEmail to be 'mail', got %q", cfg.Source.MapEmail)
+	}
 
 	// TargetConfig 検証
 	expectedAddresses := []string{"http://localhost:9200"}
@@ -82,6 +109,10 @@ func TestNewConfig_Success(t *testing.T) {
 	}
 	if cfg.Target.IndexName != "custom-users" {
 		t.Errorf("expected Target.IndexName to be 'custom-users', got %q", cfg.Target.IndexName)
+	}
+	expectedExcluded := []string{"elastic", "kibana_system", "test_user"}
+	if !reflect.DeepEqual(cfg.Target.ExcludedUsers, expectedExcluded) {
+		t.Errorf("expected Target.ExcludedUsers to be %v, got %v", expectedExcluded, cfg.Target.ExcludedUsers)
 	}
 }
 

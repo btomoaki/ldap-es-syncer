@@ -25,18 +25,25 @@ type AppConfig struct {
 
 // SourceConfig は同期元LDAPサーバーの接続設定です。
 type SourceConfig struct {
-	URL      string // e.g., "ldap://localhost:389"
-	BindDN   string // e.g., "cn=admin,dc=example,dc=org"
-	Password string // 環境変数から動的に注入
-	BaseDN   string // e.g., "dc=example,dc=org"
+	URL         string // e.g., "ldap://localhost:389"
+	BindDN      string // e.g., "cn=admin,dc=example,dc=org"
+	Password    string // 環境変数から動的に注入
+	BaseDN      string // e.g., "dc=example,dc=org"
+	ActiveUser  string // e.g., "(userPassword=*)"
+	Filter      string // e.g., "(&(objectClass=inetOrgPerson)({LDAP_ACTIVE_USER}))"
+	FinalFilter string // LDAP_FILTER with {LDAP_ACTIVE_USER} replaced
+	MapUID      string // e.g., "uid"
+	MapUsername string // e.g., "cn"
+	MapEmail    string // e.g., "mail"
 }
 
 // TargetConfig は同期先Elasticsearchの接続設定です。
 type TargetConfig struct {
-	Addresses []string // e.g., []string{"http://localhost:9200"}
-	Username  string   // ローカルでセキュリティ無効化時は空でも可
-	Password  string   // ローカルでセキュリティ無効化時は空でも可
-	IndexName string   // e.g., "users"
+	Addresses     []string // e.g., []string{"http://localhost:9200"}
+	Username      string   // ローカルでセキュリティ無効化時は空でも可
+	Password      string   // ローカルでセキュリティ無効化時は空でも可
+	IndexName     string   // e.g., "users"
+	ExcludedUsers []string // e.g., ["elastic", "kibana_system"]
 }
 
 // NewConfig はOS of the systemの環境変数から設定をロードし、Config構造体を返します。
@@ -123,11 +130,21 @@ func loadSourceConfig() (*SourceConfig, error) {
 		return nil, fmt.Errorf("required environment variable LDAP_BASE_DN is missing")
 	}
 
+	activeUser := getEnv("LDAP_ACTIVE_USER", "(userPassword=*)")
+	filter := getEnv("LDAP_FILTER", "(&(objectClass=inetOrgPerson)({LDAP_ACTIVE_USER}))")
+	finalFilter := strings.ReplaceAll(filter, "{LDAP_ACTIVE_USER}", activeUser)
+
 	return &SourceConfig{
-		URL:      url,
-		BindDN:   bindDN,
-		Password: password,
-		BaseDN:   baseDN,
+		URL:         url,
+		BindDN:      bindDN,
+		Password:    password,
+		BaseDN:      baseDN,
+		ActiveUser:  activeUser,
+		Filter:      filter,
+		FinalFilter: finalFilter,
+		MapUID:      getEnv("LDAP_MAP_UID", "uid"),
+		MapUsername: getEnv("LDAP_MAP_USERNAME", "cn"),
+		MapEmail:    getEnv("LDAP_MAP_EMAIL", "mail"),
 	}, nil
 }
 
@@ -140,11 +157,23 @@ func loadTargetConfig() (*TargetConfig, error) {
 
 	indexName := getEnv("ES_INDEX_NAME", "users")
 
+	excludedUsersStr := getEnv("ES_EXCLUDED_USERS", "elastic,kibana_system")
+	var excludedUsers []string
+	if excludedUsersStr != "" {
+		for _, u := range strings.Split(excludedUsersStr, ",") {
+			trimmed := strings.TrimSpace(u)
+			if trimmed != "" {
+				excludedUsers = append(excludedUsers, trimmed)
+			}
+		}
+	}
+
 	return &TargetConfig{
-		Addresses: addresses,
-		Username:  os.Getenv("ES_USERNAME"), // セキュリティ無効化時は空許容
-		Password:  os.Getenv("ELASTIC_PASSWORD"), // セキュリティ無効化時は空許容
-		IndexName: indexName,
+		Addresses:     addresses,
+		Username:      os.Getenv("ES_USERNAME"), // セキュリティ無効化時は空許容
+		Password:      os.Getenv("ELASTIC_PASSWORD"), // セキュリティ無効化時は空許容
+		IndexName:     indexName,
+		ExcludedUsers: excludedUsers,
 	}, nil
 }
 

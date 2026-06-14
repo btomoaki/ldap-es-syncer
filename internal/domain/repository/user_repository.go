@@ -13,4 +13,6 @@ type SourceRepository interface {
 // TargetRepository は、同期先のデータストアにユーザー情報を保存（作成または更新）する役割を持つ Port です。
 type TargetRepository interface {
 	SaveUser(ctx context.Context, user *model.User) error
+	GetAllUserIDs(ctx context.Context) ([]string, error)
+	GetUser(ctx context.Context, id string) (*model.User, error)
 }

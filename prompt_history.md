@@ -153,3 +153,26 @@ Clean Architectureおよび `GEMINI.md` に基づき、依存関係の注入（D
 - `internal/application/usecase/sync_user_usecase_test.go` (変更)
 - `internal/infrastructure/elasticsearch/user_repository.go` (変更)
 - `prompt_history.md` (変更)
+
+---
+
+## [2026-06-14] Step 9: Introduction of Dynamic Environment Variable Templates and Logic Deletion by Reconciling with Elasticsearch Existing Data
+
+### Overview
+To ensure production-level robustness and flexibility, we extend the system architecture before proceeding to the integration testing phase. We introduce "LDAP Query Dynamic Templating" and a "Reconciliation Flow with Elasticsearch Existing Data" for precise logical deletion (`IsActive = false`). This enforces the identity management principle where the active/inactive lifecycle of accounts is fully controlled by the LDAP master.
+
+### Decisions
+- **Dynamic LDAP Filter Templating:** Added environment variable configuration logic to parse `{LDAP_ACTIVE_USER}` placeholder inside `LDAP_FILTER` with the value of `LDAP_ACTIVE_USER`, storing the result as `FinalFilter`.
+- **Dynamic Attribute Mapping:** Loaded dynamic attribute keys (`LDAP_MAP_UID`, `LDAP_MAP_USERNAME`, `LDAP_MAP_EMAIL`) in the config and applied them dynamically to build domain `User` entities.
+- **Elasticsearch Reconciliation Ports:** Added `GetAllUserIDs` and `GetUser` interfaces to `TargetRepository` to enable target reconciliation.
+- **Reconciliation-based Deactivation Pipeline:** Rewrote the synchronization use case to log the compiled `FinalFilter`, upsert all active LDAP survivors with `IsActive = true`, and reconcile existing Elasticsearch IDs to deactivate (`IsActive = false`) users who are no longer active in LDAP or have been deleted, while excluding system users (`elastic`, `kibana_system`).
+
+### Created/Modified Files
+- `internal/infrastructure/config/config.go` (Modified)
+- `internal/domain/repository/user_repository.go` (Modified)
+- `internal/infrastructure/ldap/user_repository.go` (Modified)
+- `internal/infrastructure/elasticsearch/user_repository.go` (Modified)
+- `internal/application/usecase/sync_user_usecase.go` (Modified)
+- `internal/application/usecase/sync_user_usecase_test.go` (Modified)
+- `.env` (Modified)
+- `prompt_history.md` (Modified)
