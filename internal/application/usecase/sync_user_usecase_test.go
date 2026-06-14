@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -47,11 +47,12 @@ func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 	source := &mockSourceRepository{users: testUsers}
 	target := &mockTargetRepository{}
 
-	// 標準ログの出力を一時的にキャプチャして検証
+	// slog の出力を一時的にキャプチャして検証
 	var logBuf bytes.Buffer
-	originalOutput := log.Writer()
-	log.SetOutput(&logBuf)
-	defer log.SetOutput(originalOutput)
+	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
 
 	u := NewSyncUserUseCase(source, target)
 
@@ -65,11 +66,10 @@ func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 		t.Errorf("expected 2 users to be saved, got %d", len(target.savedUsers))
 	}
 
-	// 2. ログ集約出力の確認（Total processed: 2/2 users が含まれること）
+	// 2. ログ集約出力の確認（JSON構造の中に統計値が含まれること）
 	logOutput := logBuf.String()
-	expectedLog := "Total processed: 2/2 users"
-	if !strings.Contains(logOutput, expectedLog) {
-		t.Errorf("expected log output to contain %q, but got %q", expectedLog, logOutput)
+	if !strings.Contains(logOutput, `"processed_count":2`) || !strings.Contains(logOutput, `"total_users":2`) {
+		t.Errorf("expected log output to contain structured stats processed_count=2 and total_users=2, but got %q", logOutput)
 	}
 
 	// 3. ループ内での個別成功ログが出力されていないことの検証

@@ -2,12 +2,14 @@ package di
 
 import (
 	"fmt"
+	"log/slog"
 
 	"ldap-es-syncer/internal/application/usecase"
 	"ldap-es-syncer/internal/domain/repository"
 	"ldap-es-syncer/internal/infrastructure/config"
 	"ldap-es-syncer/internal/infrastructure/elasticsearch"
 	"ldap-es-syncer/internal/infrastructure/ldap"
+	"ldap-es-syncer/internal/infrastructure/logging"
 )
 
 // Container はアプリケーションの初期化された依存関係を保持する構造体です。
@@ -26,7 +28,11 @@ func NewContainer() (*Container, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// 2. インフラアダプターの初期化 (Config Injectionの徹底)
+	// 2. 構造化ロガー（slog）の初期化と設定
+	logHandler := logging.NewSplitHandler()
+	slog.SetDefault(slog.New(logHandler))
+
+	// 3. インフラアダプターの初期化 (Config Injectionの徹底)
 	sourceRepo := ldap.NewLdapUserRepository(cfg.GetSourceConfig())
 
 	targetRepo, err := elasticsearch.NewEsUserRepository(cfg.GetTargetConfig())
@@ -34,7 +40,7 @@ func NewContainer() (*Container, error) {
 		return nil, fmt.Errorf("failed to initialize elasticsearch repository: %w", err)
 	}
 
-	// 3. ユースケースの構築
+	// 4. ユースケースの構築
 	syncUC := usecase.NewSyncUserUseCase(sourceRepo, targetRepo)
 
 	return &Container{

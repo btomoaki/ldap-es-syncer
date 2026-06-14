@@ -2,8 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,13 +13,10 @@ import (
 )
 
 func main() {
-	// 標準出力(stdout)をライフサイクルイベント用に設定
-	log.SetOutput(os.Stdout)
-
-	// DIコンテナの初期化
+	// DIコンテナの初期化（内部で構造化ロガーも初期化されます）
 	container, err := di.NewContainer()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to initialize application dependencies: %v\n", err)
+		slog.Error("Failed to initialize application dependencies", slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -29,43 +25,43 @@ func main() {
 
 	// ワンオフ（バッチ）モードの処理
 	if !appConfig.DaemonMode {
-		log.Println("Lifecycle: User synchronization process started (one-off mode).")
+		slog.Info("User synchronization process started (one-off mode)")
 		if err := runSingleSync(syncUseCase); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: User synchronization failed: %v\n", err)
+			slog.Error("User synchronization failed", slog.Any("error", err))
 			os.Exit(1)
 		}
-		log.Println("Lifecycle: User synchronization process completed.")
+		slog.Info("User synchronization process completed")
 		return
 	}
 
 	// デーモン（常駐）モードの処理
-	log.Println("Lifecycle: User synchronization daemon starting...")
+	slog.Info("User synchronization daemon starting")
 
 	// シグナルハンドリングの設定
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// 初回同期実行
-	log.Println("Lifecycle: Running initial synchronization...")
+	slog.Info("Running initial synchronization")
 	if err := runSingleSync(syncUseCase); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Initial synchronization failed: %v\n", err)
+		slog.Error("Initial synchronization failed", slog.Any("error", err))
 	}
 
 	ticker := time.NewTicker(appConfig.SyncInterval)
 	defer ticker.Stop()
 
-	log.Printf("Lifecycle: User synchronization daemon started. Interval: %v\n", appConfig.SyncInterval)
+	slog.Info("User synchronization daemon started", slog.Duration("interval", appConfig.SyncInterval))
 
 	for {
 		select {
 		case sig := <-sigChan:
-			log.Printf("Lifecycle: Received signal %v. Shutting down daemon gracefully...\n", sig)
-			log.Println("Lifecycle: User synchronization daemon stopped.")
+			slog.Info("Received signal, shutting down daemon gracefully", slog.String("signal", sig.String()))
+			slog.Info("User synchronization daemon stopped")
 			return
 		case <-ticker.C:
-			log.Println("Lifecycle: Starting periodic synchronization cycle...")
+			slog.Info("Starting periodic synchronization cycle")
 			if err := runSingleSync(syncUseCase); err != nil {
-				fmt.Fprintf(os.Stderr, "Error: Periodic synchronization cycle failed: %v\n", err)
+				slog.Error("Periodic synchronization cycle failed", slog.Any("error", err))
 			}
 		}
 	}

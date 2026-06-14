@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
+	"time"
 
 	"ldap-es-syncer/internal/domain/model"
 	"ldap-es-syncer/internal/domain/repository"
@@ -34,10 +36,20 @@ func NewEsUserRepository(cfg *config.TargetConfig) (repository.TargetRepository,
 		return nil, fmt.Errorf("failed to create elasticsearch client: %w", err)
 	}
 
-	return &EsUserRepository{
+	repo := &EsUserRepository{
 		client: client,
 		index:  cfg.IndexName,
-	}, nil
+	}
+
+	// アプリ起動時のインデックス自動作成とマッピング定義の初期化
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := repo.initializeIndex(ctx); err != nil {
+		return nil, fmt.Errorf("failed to initialize elasticsearch index mappings: %w", err)
+	}
+
+	return repo, nil
 }
 
 // SaveUser はユーザー情報を Elasticsearch に対して Upsert (Index API) します。
@@ -71,3 +83,57 @@ func (r *EsUserRepository) SaveUser(ctx context.Context, user *model.User) error
 
 	return nil
 }
+
+// initializeIndex はインデックスの存在を確認し、存在しない場合は明示的なマッピングを指定して作成します。
+func (r *EsUserRepository) initializeIndex(ctx context.Context) error {
+	// 1. インデックスの存在確認
+	existsReq := esapi.IndicesExistsRequest{
+		Index: []string{r.index},
+	}
+	res, err := existsReq.Do(ctx, r.client)
+	if err != nil {
+		return fmt.Errorf("failed to check if index %q exists: %w", r.index, err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == 200 {
+		return nil // 既に存在するため初期化不要
+	}
+
+	if res.StatusCode != 404 {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("failed to check index existence: status=%s, body=%s", res.Status(), string(body))
+	}
+
+	// 2. マッピングを定義してインデックスを作成
+	mapping := `{
+		"mappings": {
+			"properties": {
+				"ID": { "type": "keyword" },
+				"Username": { "type": "keyword" },
+				"Email": { "type": "keyword" },
+				"IsActive": { "type": "boolean" },
+				"UpdatedAt": { "type": "date" }
+			}
+		}
+	}`
+
+	createReq := esapi.IndicesCreateRequest{
+		Index: r.index,
+		Body:  strings.NewReader(mapping),
+	}
+
+	createRes, err := createReq.Do(ctx, r.client)
+	if err != nil {
+		return fmt.Errorf("failed to create index %q: %w", r.index, err)
+	}
+	defer createRes.Body.Close()
+
+	if createRes.IsError() {
+		body, _ := io.ReadAll(createRes.Body)
+		return fmt.Errorf("failed to create index %q: status=%s, body=%s", r.index, createRes.Status(), string(body))
+	}
+
+	return nil
+}
+

@@ -116,40 +116,40 @@ Clean Architectureおよび `GEMINI.md` に基づき、依存関係の注入（D
 
 ---
 
-## [2026-06-14] Step 7: Implementation of Daemon vs. One-off Modes and Signal Handling
+## [2026-06-14] ステップ7: デーモンモードとワンオフモードの切り替えおよびシグナルハンドリングの実装
 
-### Summary
-Enhance the synchronization application to support both periodic execution (daemon mode using `time.Ticker`) and single execution (one-off mode), controllable via environment variables, along with graceful signal handling (intercepting `SIGINT` and `SIGTERM`).
+### 概要
+同期アプリケーションにおいて、定期実行（`time.Ticker` を用いたデーモンモード）と単発実行（ワンオフモード）の両方を環境変数で制御可能にし、さらに `SIGINT` および `SIGTERM` シグナルを受け取る優雅な停止（Graceful Shutdown）ロジックを実装。
 
-### Decisions
-- **Mode Switching:** Introduce a `DAEMON_MODE` boolean setting (defaulting to `true` or configurable) to toggle between daemon mode and one-off batch mode.
-- **Configurable Interval:** Add `SyncInterval` setting (mapped from `SYNC_INTERVAL` environment variable) to control the daemon's synchronization interval, defaulting to a reasonable value (e.g., 1 hour).
-- **Graceful Shutdown:** Implement logic in daemon mode to intercept `SIGINT`/`SIGTERM` signals. If a sync job is currently running, wait for it to finish before terminating, preventing partial sync states.
-- **Daemon Loop & Single Run:** Use a `time.Ticker` in `cmd/main.go` for daemon mode, or perform a single run and exit if daemon mode is disabled.
-- **Cloud-Native Logging Compliance:** Output minimal stdout logs on lifecycle events (start/stop) and sync completion summaries.
+### 決定事項
+- **動作モードの切り替え:** `DAEMON_MODE` 環境変数（真偽値、デフォルトは `true`）を導入し、デーモン実行とバッチ実行を切り替えられるように設計。
+- **実行間隔の設定:** デーモン実行時の同期間隔を制御する `SyncInterval` 設定（`SYNC_INTERVAL` 環境変数から取得、デフォルト値は1時間など）を追加。
+- **クリーンな停止処理 (Graceful Shutdown):** デーモン実行中に `SIGINT` や `SIGTERM` を受信した際、同期処理が実行中であれば完了を待ってから終了する仕組みを導入し、中途半端な同期状態を防ぐ。
+- **デーモンループと単発実行:** `cmd/main.go` にて、デーモンモードの場合は `time.Ticker` によるループ処理を、オフの場合は1回のみ実行して終了する処理を実装。
+- **クラウドネイティブ・ロギングの遵守:** 起動・停止のライフサイクルイベントと、同期完了時の統計情報のみを最小限の標準出力（Stdout）に出力。
 
-### Created/Modified Files
-- `cmd/main.go` (Modify)
-- `.env` (Modify)
-- `internal/infrastructure/config/config.go` (Modify)
-- `prompt_history.md` (Modify)
+### 作成・変更ファイル
+- `cmd/main.go` (変更)
+- `.env` (変更)
+- `internal/infrastructure/config/config.go` (変更)
+- `prompt_history.md` (変更)
 
 ---
 
-## [2026-06-14] Step 8: Automatic Elasticsearch Index Mapping Initialization and Structured Logging Setup
+## [2026-06-14] ステップ8: Elasticsearch インデックスマッピングの自動初期化と構造化ロギングの導入
 
-### Summary
-Implement automatic creation and mapping definition for the Elasticsearch user index on application startup. Additionally, upgrade the application's logging mechanism to use Go's built-in structured logger (`log/slog`), outputting JSON logs to stdout for lifecycle/statistics events and to stderr for detailed error contexts.
+### 概要
+アプリケーション起動時に Elasticsearch のユーザーインデックスの存在チェックとマッピング定義を自動で行う処理を実装。さらに、ロギング機構を Go 標準の構造化ロガー（`log/slog`）に移行し、ライフサイクルや統計情報は stdout、詳細なエラー情報は stderr へ JSON 形式で出力する仕組みを導入。
 
-### Decisions
-- **Startup Index Initialization:** Query if the Elasticsearch target index exists when instantiating the Elasticsearch user repository. If not, automatically create it and apply explicit field mappings (ID, Username, Email, IsActive, UpdatedAt).
-- **Go Structured Logging (`slog`):** Transition from standard `log` to Go's structured `log/slog`.
-- **Stream Redirection (Stdout/Stderr):** Implement a split handler for `slog` so that `INFO` levels go to standard output (stdout) and `ERROR` levels go to standard error (stderr), satisfying the resource-efficient logging rules.
-- **Log Aggregation Verification:** Update unit tests to capture and assert `slog` JSON outputs instead of standard log streams.
+### 決定事項
+- **起動時のインデックス初期化:** Elasticsearch リポジトリのインスタンス化時にターゲットインデックスの存在を確認。存在しない場合は自動的にインデックスを作成し、明示的なフィールドマッピング（ID、Username、Email、IsActive、UpdatedAt）を適用。
+- **Go 構造化ロギング (`log/slog`):** 標準の `log` パッケージから Go の構造化ロガーである `log/slog` へ移行。
+- **出力ストリームの振り分け (Stdout/Stderr):** `slog` のハンドラーをカスタマイズし、`INFO` レベルは標準出力（stdout）へ、`ERROR` レベルは標準エラー出力（stderr）へ振り分けることで、クラウドネイティブ・ロギングのルールを充足。
+- **ログ集約テストの更新:** ユニットテストを更新し、標準ログ出力の代わりに `slog` からの JSON 出力をキャプチャして検証するよう修正。
 
-### Created/Modified Files
-- `cmd/main.go` (Modify)
-- `internal/application/usecase/sync_user_usecase.go` (Modify)
-- `internal/application/usecase/sync_user_usecase_test.go` (Modify)
-- `internal/infrastructure/elasticsearch/user_repository.go` (Modify)
-- `prompt_history.md` (Modify)
+### 作成・変更ファイル
+- `cmd/main.go` (変更)
+- `internal/application/usecase/sync_user_usecase.go` (変更)
+- `internal/application/usecase/sync_user_usecase_test.go` (変更)
+- `internal/infrastructure/elasticsearch/user_repository.go` (変更)
+- `prompt_history.md` (変更)

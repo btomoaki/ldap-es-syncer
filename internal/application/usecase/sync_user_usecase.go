@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"ldap-es-syncer/internal/domain/repository"
 )
@@ -48,7 +48,10 @@ func (u *syncUserUseCase) Execute(ctx context.Context) error {
 	}
 
 	// 3. ループ内での一人ひとりの成功ログは排除し、最後に合計件数を1行で出力する最適化 (Log Aggregation)
-	log.Printf("Total processed: %d/%d users", processedCount, totalUsers)
+	slog.Info("User synchronization process completed",
+		slog.Int("processed_count", processedCount),
+		slog.Int("total_users", totalUsers),
+	)
 
 	return nil
 }
