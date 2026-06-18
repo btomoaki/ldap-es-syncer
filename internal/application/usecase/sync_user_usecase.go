@@ -20,6 +20,7 @@ type syncUserUseCase struct {
 	targetRepo    repository.TargetRepository
 	finalFilter   string
 	excludedUsers []string
+	syncMinUsers  int
 }
 
 // NewSyncUserUseCase はsyncUserUseCaseのコンストラクタです。
@@ -28,12 +29,14 @@ func NewSyncUserUseCase(
 	targetRepo repository.TargetRepository,
 	finalFilter string,
 	excludedUsers []string,
+	syncMinUsers int,
 ) SyncUserUseCase {
 	return &syncUserUseCase{
 		sourceRepo:    sourceRepo,
 		targetRepo:    targetRepo,
 		finalFilter:   finalFilter,
 		excludedUsers: excludedUsers,
+		syncMinUsers:  syncMinUsers,
 	}
 }
 
@@ -52,6 +55,11 @@ func (u *syncUserUseCase) Execute(ctx context.Context) error {
 	users, err := u.sourceRepo.FetchUsers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch users from source: %w", err)
+	}
+
+	// 3.5 [セーフティガード] 取得したユーザー数が閾値未満の場合は同期をアボート
+	if len(users) < u.syncMinUsers {
+		return fmt.Errorf("safety guard triggered: LDAP user count (%d) is below the minimum threshold (%d). aborting synchronization to prevent accidental mass deletion", len(users), u.syncMinUsers)
 	}
 
 	activeMap := make(map[string]bool)

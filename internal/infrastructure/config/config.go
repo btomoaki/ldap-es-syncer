@@ -21,6 +21,7 @@ type AppConfig struct {
 	LogLevel     string        // e.g., "info", "debug", "error"
 	DaemonMode   bool          // e.g., true, false
 	SyncInterval time.Duration // e.g., 1 * time.Hour
+	SyncMinUsers int           // セーフティガード：同期を安全に実行するための最小ユーザー数
 }
 
 // SourceConfig は同期元LDAPサーバーの接続設定です。
@@ -45,6 +46,7 @@ type TargetConfig struct {
 	Password      string   // ローカルでセキュリティ無効化時は空でも可
 	IndexName     string   // e.g., "users"
 	ExcludedUsers []string // e.g., ["elastic", "kibana_system"]
+	MaxResults    int      // Elasticsearchからの最大取得件数（上限）
 }
 
 // NewConfig はOS of the systemの環境変数から設定をロードし、Config構造体を返します。
@@ -90,10 +92,10 @@ func (c *Config) GetTargetConfig() *TargetConfig {
 // -- 各設定セグメントのロードヘルパー関数 --
 
 func loadAppConfig() (*AppConfig, error) {
-	daemonModeStr := getEnv("DAEMON_MODE", "true")
+	daemonModeStr := getEnv("SYNC_DAEMON_MODE", "true")
 	daemonMode, err := strconv.ParseBool(daemonModeStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse DAEMON_MODE: %w", err)
+		return nil, fmt.Errorf("failed to parse SYNC_DAEMON_MODE: %w", err)
 	}
 
 	intervalStr := getEnv("SYNC_INTERVAL", "1h")
@@ -102,11 +104,18 @@ func loadAppConfig() (*AppConfig, error) {
 		return nil, fmt.Errorf("failed to parse SYNC_INTERVAL: %w", err)
 	}
 
+	minUsersStr := getEnv("SYNC_MIN_USERS", "1")
+	minUsers, err := strconv.Atoi(minUsersStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SYNC_MIN_USERS: %w", err)
+	}
+
 	return &AppConfig{
 		Env:          getEnv("APP_ENV", "development"),
-		LogLevel:     getEnv("LOG_LEVEL", "info"),
+		LogLevel:     getEnv("APP_LOG_LEVEL", "info"),
 		DaemonMode:   daemonMode,
 		SyncInterval: interval,
+		SyncMinUsers: minUsers,
 	}, nil
 }
 
@@ -176,12 +185,19 @@ func loadTargetConfig() (*TargetConfig, error) {
 		}
 	}
 
+	maxResultsStr := getEnv("ES_MAX_RESULTS", "1000")
+	maxResults, err := strconv.Atoi(maxResultsStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ES_MAX_RESULTS: %w", err)
+	}
+
 	return &TargetConfig{
 		Addresses:     addresses,
 		Username:      os.Getenv("ES_USERNAME"), // セキュリティ無効化時は空許容
 		Password:      os.Getenv("ELASTIC_PASSWORD"), // セキュリティ無効化時は空許容
 		IndexName:     indexName,
 		ExcludedUsers: excludedUsers,
+		MaxResults:    maxResults,
 	}, nil
 }
 

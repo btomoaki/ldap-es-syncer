@@ -46,6 +46,7 @@ func NewContainer() (*Container, error) {
 		targetRepo,
 		cfg.GetSourceConfig().FinalFilter,
 		cfg.GetTargetConfig().ExcludedUsers,
+		cfg.GetAppConfig().SyncMinUsers,
 	)
 
 	return &Container{

@@ -18,8 +18,9 @@ import (
 
 // EsUserRepository は TargetRepository インターフェースの Elasticsearch による具象実装です。
 type EsUserRepository struct {
-	client *elasticsearch.Client
-	index  string
+	client     *elasticsearch.Client
+	index      string
+	maxResults int
 }
 
 // NewEsUserRepository は EsUserRepository のコンストラクタです。
@@ -37,8 +38,9 @@ func NewEsUserRepository(cfg *config.TargetConfig) (repository.TargetRepository,
 	}
 
 	repo := &EsUserRepository{
-		client: client,
-		index:  cfg.IndexName,
+		client:     client,
+		index:      cfg.IndexName,
+		maxResults: cfg.MaxResults,
 	}
 
 	// アプリ起動時のインデックス自動作成とマッピング定義の初期化
@@ -145,7 +147,7 @@ func (r *EsUserRepository) GetAllUserIDs(ctx context.Context) ([]string, error) 
 			"match_all": map[string]interface{}{},
 		},
 		"_source": []string{"ID"},
-		"size":    10000,
+		"size":    r.maxResults,
 	}
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {
 		return nil, fmt.Errorf("failed to encode query: %w", err)

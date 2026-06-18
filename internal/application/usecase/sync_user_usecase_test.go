@@ -101,7 +101,7 @@ func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, finalFilter, excludedUsers)
+	u := NewSyncUserUseCase(source, target, finalFilter, excludedUsers, 1)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -133,7 +133,7 @@ func TestSyncUserUseCase_Execute_SourceError(t *testing.T) {
 	source := &mockSourceRepository{err: expectedErr}
 	target := &mockTargetRepository{}
 
-	u := NewSyncUserUseCase(source, target, "", nil)
+	u := NewSyncUserUseCase(source, target, "", nil, 1)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -154,7 +154,7 @@ func TestSyncUserUseCase_Execute_TargetError(t *testing.T) {
 	source := &mockSourceRepository{users: testUsers}
 	target := &mockTargetRepository{err: expectedErr}
 
-	u := NewSyncUserUseCase(source, target, "", nil)
+	u := NewSyncUserUseCase(source, target, "", nil, 1)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -194,7 +194,7 @@ func TestSyncUserUseCase_Execute_Reconciliation(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, finalFilter, excludedUsers)
+	u := NewSyncUserUseCase(source, target, finalFilter, excludedUsers, 1)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -222,5 +222,34 @@ func TestSyncUserUseCase_Execute_Reconciliation(t *testing.T) {
 	userElastic, err := target.GetUser(context.Background(), "elastic")
 	if err != nil || !userElastic.IsActive {
 		t.Errorf("expected system user 'elastic' to remain Active, got error=%v active=%t", err, userElastic.IsActive)
+	}
+}
+
+func TestSyncUserUseCase_Execute_SafetyGuard(t *testing.T) {
+	// 1. LDAP生存者: 2人
+	testUsers := []*model.User{
+		model.NewUser("101", "alice", "alice@example.com", "pass123"),
+		model.NewUser("102", "bob", "bob@example.com", "pass456"),
+	}
+	source := &mockSourceRepository{users: testUsers}
+	target := &mockTargetRepository{
+		existingUsers: make(map[string]*model.User),
+	}
+
+	// 閾値を3に設定（生存者2人 < 閾値3 なのでアボートするはず）
+	u := NewSyncUserUseCase(source, target, "", nil, 3)
+
+	err := u.Execute(context.Background())
+	if err == nil {
+		t.Fatal("expected error due to safety guard, but got nil")
+	}
+
+	if !strings.Contains(err.Error(), "safety guard triggered") {
+		t.Errorf("expected error message to contain 'safety guard triggered', got %q", err.Error())
+	}
+
+	// 同期（保存）処理が実行されていないことを確認
+	if len(target.savedUsers) != 0 {
+		t.Errorf("expected 0 users to be saved, got %d", len(target.savedUsers))
 	}
 }

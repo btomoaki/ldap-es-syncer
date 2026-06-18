@@ -30,8 +30,8 @@ func TestNewConfig_Success(t *testing.T) {
 
 	// オプション・デフォルト上書き設定
 	os.Setenv("APP_ENV", "production")
-	os.Setenv("LOG_LEVEL", "debug")
-	os.Setenv("DAEMON_MODE", "false")
+	os.Setenv("APP_LOG_LEVEL", "debug")
+	os.Setenv("SYNC_DAEMON_MODE", "false")
 	os.Setenv("SYNC_INTERVAL", "30s")
 	os.Setenv("ES_INDEX_NAME", "custom-users")
 	os.Setenv("ES_USERNAME", "elastic")
@@ -45,6 +45,8 @@ func TestNewConfig_Success(t *testing.T) {
 	os.Setenv("LDAP_MAP_EMAIL", "mail")
 	os.Setenv("ES_EXCLUDED_USERS", "elastic,kibana_system,test_user")
 	os.Setenv("LDAP_SKIP_VERIFY", "true")
+	os.Setenv("SYNC_MIN_USERS", "5")
+	os.Setenv("ES_MAX_RESULTS", "500")
 
 	cfg, err := NewConfig()
 	if err != nil {
@@ -63,6 +65,9 @@ func TestNewConfig_Success(t *testing.T) {
 	}
 	if cfg.App.SyncInterval != 30*time.Second {
 		t.Errorf("expected App.SyncInterval to be 30s, got %v", cfg.App.SyncInterval)
+	}
+	if cfg.App.SyncMinUsers != 5 {
+		t.Errorf("expected App.SyncMinUsers to be 5, got %d", cfg.App.SyncMinUsers)
 	}
 
 	// SourceConfig 検証
@@ -119,6 +124,9 @@ func TestNewConfig_Success(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Target.ExcludedUsers, expectedExcluded) {
 		t.Errorf("expected Target.ExcludedUsers to be %v, got %v", expectedExcluded, cfg.Target.ExcludedUsers)
 	}
+	if cfg.Target.MaxResults != 500 {
+		t.Errorf("expected Target.MaxResults to be 500, got %d", cfg.Target.MaxResults)
+	}
 }
 
 func TestConfig_Getters(t *testing.T) {
@@ -140,8 +148,14 @@ func TestConfig_Getters(t *testing.T) {
 	if cfg.App.SyncInterval != 1*time.Hour {
 		t.Errorf("expected default App.SyncInterval to be 1h, got %v", cfg.App.SyncInterval)
 	}
+	if cfg.App.SyncMinUsers != 1 {
+		t.Errorf("expected default App.SyncMinUsers to be 1, got %d", cfg.App.SyncMinUsers)
+	}
 	if cfg.Source.SkipVerify != false {
 		t.Errorf("expected default Source.SkipVerify to be false, got %v", cfg.Source.SkipVerify)
+	}
+	if cfg.Target.MaxResults != 1000 {
+		t.Errorf("expected default Target.MaxResults to be 1000, got %d", cfg.Target.MaxResults)
 	}
 
 	if cfg.GetAppConfig() != cfg.App {
@@ -170,5 +184,41 @@ func TestNewConfig_InvalidSkipVerify(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to parse LDAP_SKIP_VERIFY") {
 		t.Errorf("expected error message to contain 'failed to parse LDAP_SKIP_VERIFY', got %q", err.Error())
+	}
+}
+
+func TestNewConfig_InvalidSyncMinUsers(t *testing.T) {
+	os.Clearenv()
+	os.Setenv("LDAP_URL", "ldap://localhost")
+	os.Setenv("LDAP_BIND_DN", "cn=admin")
+	os.Setenv("LDAP_PASSWORD", "pass")
+	os.Setenv("LDAP_BASE_DN", "dc=example")
+	os.Setenv("ES_ADDRESSES", "http://localhost")
+	os.Setenv("SYNC_MIN_USERS", "not_an_int")
+
+	_, err := NewConfig()
+	if err == nil {
+		t.Fatal("expected error due to invalid SYNC_MIN_USERS, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to parse SYNC_MIN_USERS") {
+		t.Errorf("expected error message to contain 'failed to parse SYNC_MIN_USERS', got %q", err.Error())
+	}
+}
+
+func TestNewConfig_InvalidMaxResults(t *testing.T) {
+	os.Clearenv()
+	os.Setenv("LDAP_URL", "ldap://localhost")
+	os.Setenv("LDAP_BIND_DN", "cn=admin")
+	os.Setenv("LDAP_PASSWORD", "pass")
+	os.Setenv("LDAP_BASE_DN", "dc=example")
+	os.Setenv("ES_ADDRESSES", "http://localhost")
+	os.Setenv("ES_MAX_RESULTS", "not_an_int")
+
+	_, err := NewConfig()
+	if err == nil {
+		t.Fatal("expected error due to invalid ES_MAX_RESULTS, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to parse ES_MAX_RESULTS") {
+		t.Errorf("expected error message to contain 'failed to parse ES_MAX_RESULTS', got %q", err.Error())
 	}
 }
