@@ -176,3 +176,21 @@ To ensure production-level robustness and flexibility, we extend the system arch
 - `internal/application/usecase/sync_user_usecase_test.go` (Modified)
 - `.env` (Modified)
 - `prompt_history.md` (Modified)
+
+---
+
+## [2026-06-18] ステップ10: LDAP_SKIP_VERIFY の実装
+
+### 概要
+LDAPサーバーとの TLS 接続時における証明書検証のスキップ制御（`LDAP_SKIP_VERIFY`）を実装。
+
+### 決定事項
+- **設定値の追加**: `.env` に `LDAP_SKIP_VERIFY=true`（デフォルトは `false`）を追加。
+- **Configモジュールの拡張**: `config.go` の `SourceConfig` に `SkipVerify` フィールドを追加し、環境変数のロードロジックを実装。
+- **LDAPリポジトリへの適用**: `ldap/user_repository.go` での接続時（`ldap.DialURL`）、TLS接続オプション（`InsecureSkipVerify`）に設定値を適用。
+
+### 作成・変更ファイル
+- `.env` (変更)
+- `internal/infrastructure/config/config.go` (変更)
+- `internal/infrastructure/ldap/user_repository.go` (変更)
+- `prompt_history.md` (変更)

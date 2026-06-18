@@ -2,6 +2,7 @@ package ldap
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 
 	"ldap-es-syncer/internal/domain/model"
@@ -26,7 +27,10 @@ func NewLdapUserRepository(cfg *config.SourceConfig) repository.SourceRepository
 // FetchUsers はLDAPからユーザー一覧を検索してドメインモデル User に変換して返します。
 func (r *LdapUserRepository) FetchUsers(ctx context.Context) ([]*model.User, error) {
 	// LDAPサーバーに接続
-	l, err := ldap.DialURL(r.cfg.URL)
+	l, err := ldap.DialURL(
+		r.cfg.URL,
+		ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: r.cfg.SkipVerify}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("ldap dial failed: %w", err)
 	}

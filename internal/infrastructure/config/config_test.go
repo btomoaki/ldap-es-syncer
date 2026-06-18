@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,13 +37,14 @@ func TestNewConfig_Success(t *testing.T) {
 	os.Setenv("ES_USERNAME", "elastic")
 	os.Setenv("ELASTIC_PASSWORD", "changeme")
 
-	// Step 9 新規設定
+	// LDAP動的クエリ・マッピング設定
 	os.Setenv("LDAP_ACTIVE_USER", "(userPassword=*)")
 	os.Setenv("LDAP_FILTER", "(&(objectClass=inetOrgPerson)({LDAP_ACTIVE_USER}))")
 	os.Setenv("LDAP_MAP_UID", "uid")
 	os.Setenv("LDAP_MAP_USERNAME", "cn")
 	os.Setenv("LDAP_MAP_EMAIL", "mail")
 	os.Setenv("ES_EXCLUDED_USERS", "elastic,kibana_system,test_user")
+	os.Setenv("LDAP_SKIP_VERIFY", "true")
 
 	cfg, err := NewConfig()
 	if err != nil {
@@ -95,6 +97,9 @@ func TestNewConfig_Success(t *testing.T) {
 	if cfg.Source.MapEmail != "mail" {
 		t.Errorf("expected Source.MapEmail to be 'mail', got %q", cfg.Source.MapEmail)
 	}
+	if cfg.Source.SkipVerify != true {
+		t.Errorf("expected Source.SkipVerify to be true, got %v", cfg.Source.SkipVerify)
+	}
 
 	// TargetConfig 検証
 	expectedAddresses := []string{"http://localhost:9200"}
@@ -135,6 +140,9 @@ func TestConfig_Getters(t *testing.T) {
 	if cfg.App.SyncInterval != 1*time.Hour {
 		t.Errorf("expected default App.SyncInterval to be 1h, got %v", cfg.App.SyncInterval)
 	}
+	if cfg.Source.SkipVerify != false {
+		t.Errorf("expected default Source.SkipVerify to be false, got %v", cfg.Source.SkipVerify)
+	}
 
 	if cfg.GetAppConfig() != cfg.App {
 		t.Error("GetAppConfig did not return correct pointer")
@@ -144,5 +152,23 @@ func TestConfig_Getters(t *testing.T) {
 	}
 	if cfg.GetTargetConfig() != cfg.Target {
 		t.Error("GetTargetConfig did not return correct pointer")
+	}
+}
+
+func TestNewConfig_InvalidSkipVerify(t *testing.T) {
+	os.Clearenv()
+	os.Setenv("LDAP_URL", "ldap://localhost")
+	os.Setenv("LDAP_BIND_DN", "cn=admin")
+	os.Setenv("LDAP_PASSWORD", "pass")
+	os.Setenv("LDAP_BASE_DN", "dc=example")
+	os.Setenv("ES_ADDRESSES", "http://localhost")
+	os.Setenv("LDAP_SKIP_VERIFY", "invalid_bool")
+
+	_, err := NewConfig()
+	if err == nil {
+		t.Fatal("expected error due to invalid LDAP_SKIP_VERIFY, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to parse LDAP_SKIP_VERIFY") {
+		t.Errorf("expected error message to contain 'failed to parse LDAP_SKIP_VERIFY', got %q", err.Error())
 	}
 }

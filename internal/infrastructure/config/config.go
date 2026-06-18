@@ -35,6 +35,7 @@ type SourceConfig struct {
 	MapUID      string // e.g., "uid"
 	MapUsername string // e.g., "cn"
 	MapEmail    string // e.g., "mail"
+	SkipVerify  bool   // TLS証明書の検証をスキップするか
 }
 
 // TargetConfig は同期先Elasticsearchの接続設定です。
@@ -134,6 +135,12 @@ func loadSourceConfig() (*SourceConfig, error) {
 	filter := getEnv("LDAP_FILTER", "(&(objectClass=inetOrgPerson)({LDAP_ACTIVE_USER}))")
 	finalFilter := strings.ReplaceAll(filter, "{LDAP_ACTIVE_USER}", activeUser)
 
+	skipVerifyStr := getEnv("LDAP_SKIP_VERIFY", "false")
+	skipVerify, err := strconv.ParseBool(skipVerifyStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse LDAP_SKIP_VERIFY: %w", err)
+	}
+
 	return &SourceConfig{
 		URL:         url,
 		BindDN:      bindDN,
@@ -145,6 +152,7 @@ func loadSourceConfig() (*SourceConfig, error) {
 		MapUID:      getEnv("LDAP_MAP_UID", "uid"),
 		MapUsername: getEnv("LDAP_MAP_USERNAME", "cn"),
 		MapEmail:    getEnv("LDAP_MAP_EMAIL", "mail"),
+		SkipVerify:  skipVerify,
 	}, nil
 }
 
