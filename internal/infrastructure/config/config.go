@@ -17,11 +17,14 @@ type Config struct {
 
 // AppConfig はアプリケーションの基本動作（動作環境、ログレベル）の設定です。
 type AppConfig struct {
-	Env          string        // e.g., "development", "production"
-	LogLevel     string        // e.g., "info", "debug", "error"
-	DaemonMode   bool          // e.g., true, false
-	SyncInterval time.Duration // e.g., 1 * time.Hour
-	SyncMinUsers int           // セーフティガード：同期を安全に実行するための最小ユーザー数
+	Env                   string        // e.g., "development", "production"
+	LogLevel              string        // e.g., "info", "debug", "error"
+	DaemonMode            bool          // e.g., true, false
+	SyncInterval          time.Duration // e.g., 1 * time.Hour
+	SyncMinUsers          int           // セーフティガード：同期を安全に実行するための最小ユーザー数
+	MetricsEnabled        bool          // Prometheusメトリクス収集を有効にするか
+	MetricsPort           string        // Prometheusメトリクスサーバーの公開ポート (e.g., "8080")
+	MetricsPushgatewayURL string        // Prometheus Pushgatewayのプッシュ先URL (e.g., "http://localhost:9091")
 }
 
 // SourceConfig は同期元LDAPサーバーの接続設定です。
@@ -110,12 +113,21 @@ func loadAppConfig() (*AppConfig, error) {
 		return nil, fmt.Errorf("failed to parse SYNC_MIN_USERS: %w", err)
 	}
 
+	metricsEnabledStr := getEnv("METRICS_ENABLED", "false")
+	metricsEnabled, err := strconv.ParseBool(metricsEnabledStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse METRICS_ENABLED: %w", err)
+	}
+
 	return &AppConfig{
-		Env:          getEnv("APP_ENV", "development"),
-		LogLevel:     getEnv("APP_LOG_LEVEL", "info"),
-		DaemonMode:   daemonMode,
-		SyncInterval: interval,
-		SyncMinUsers: minUsers,
+		Env:                   getEnv("APP_ENV", "development"),
+		LogLevel:              getEnv("APP_LOG_LEVEL", "info"),
+		DaemonMode:            daemonMode,
+		SyncInterval:          interval,
+		SyncMinUsers:          minUsers,
+		MetricsEnabled:        metricsEnabled,
+		MetricsPort:           getEnv("METRICS_PORT", "8080"),
+		MetricsPushgatewayURL: getEnv("METRICS_PUSHGATEWAY_URL", ""),
 	}, nil
 }
 

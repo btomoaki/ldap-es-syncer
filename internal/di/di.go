@@ -10,14 +10,16 @@ import (
 	"ldap-es-syncer/internal/infrastructure/elasticsearch"
 	"ldap-es-syncer/internal/infrastructure/ldap"
 	"ldap-es-syncer/internal/infrastructure/logging"
+	"ldap-es-syncer/internal/infrastructure/prometheus"
 )
 
 // Container はアプリケーションの初期化された依存関係を保持する構造体です。
 type Container struct {
-	cfg        *config.Config
-	sourceRepo repository.SourceRepository
-	targetRepo repository.TargetRepository
-	syncUC     usecase.SyncUserUseCase
+	cfg         *config.Config
+	sourceRepo  repository.SourceRepository
+	targetRepo  repository.TargetRepository
+	metricsRepo repository.MetricsRepository
+	syncUC      usecase.SyncUserUseCase
 }
 
 // NewContainer は設定をロードし、依存関係を配線・初期化します。
@@ -32,6 +34,16 @@ func NewContainer() (*Container, error) {
 	logHandler := logging.NewSplitHandler()
 	slog.SetDefault(slog.New(logHandler))
 
+	// 2.5 メトリクスリポジトリの初期化
+	var metricsRepo repository.MetricsRepository
+	if cfg.GetAppConfig().MetricsEnabled {
+		metricsRepo = prometheus.NewPrometheusMetricsRepository()
+		slog.Info("Prometheus metrics enabled")
+	} else {
+		metricsRepo = prometheus.NewNoopMetricsRepository()
+		slog.Info("Prometheus metrics disabled (using Noop metrics)")
+	}
+
 	// 3. インフラアダプターの初期化 (Config Injectionの徹底)
 	sourceRepo := ldap.NewLdapUserRepository(cfg.GetSourceConfig())
 
@@ -44,16 +56,18 @@ func NewContainer() (*Container, error) {
 	syncUC := usecase.NewSyncUserUseCase(
 		sourceRepo,
 		targetRepo,
+		metricsRepo,
 		cfg.GetSourceConfig().FinalFilter,
 		cfg.GetTargetConfig().ExcludedUsers,
 		cfg.GetAppConfig().SyncMinUsers,
 	)
 
 	return &Container{
-		cfg:        cfg,
-		sourceRepo: sourceRepo,
-		targetRepo: targetRepo,
-		syncUC:     syncUC,
+		cfg:         cfg,
+		sourceRepo:  sourceRepo,
+		targetRepo:  targetRepo,
+		metricsRepo: metricsRepo,
+		syncUC:      syncUC,
 	}, nil
 }
 
@@ -65,4 +79,9 @@ func (c *Container) GetSyncUserUseCase() usecase.SyncUserUseCase {
 // GetAppConfig はロードされた AppConfig インスタンスを返します。
 func (c *Container) GetAppConfig() *config.AppConfig {
 	return c.cfg.GetAppConfig()
+}
+
+// GetMetricsRepository は解決された MetricsRepository インスタンスを返します。
+func (c *Container) GetMetricsRepository() repository.MetricsRepository {
+	return c.metricsRepo
 }

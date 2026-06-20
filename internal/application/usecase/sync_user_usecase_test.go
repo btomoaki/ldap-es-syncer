@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"ldap-es-syncer/internal/domain/model"
 )
@@ -80,6 +81,14 @@ func (m *mockTargetRepository) GetUser(ctx context.Context, id string) (*model.U
 	return &copyUser, nil
 }
 
+// mockMetricsRepository は MetricsRepository のテストモックです。
+type mockMetricsRepository struct{}
+
+func (m *mockMetricsRepository) RecordSyncDuration(duration time.Duration) {}
+func (m *mockMetricsRepository) RecordProcessedUsers(count int)           {}
+func (m *mockMetricsRepository) RecordActiveUsers(count int)              {}
+func (m *mockMetricsRepository) RecordSyncStatus(success bool)            {}
+
 func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 	testUsers := []*model.User{
 		model.NewUser("101", "alice", "alice@example.com", "pass123"),
@@ -101,7 +110,7 @@ func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, finalFilter, excludedUsers, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -133,7 +142,7 @@ func TestSyncUserUseCase_Execute_SourceError(t *testing.T) {
 	source := &mockSourceRepository{err: expectedErr}
 	target := &mockTargetRepository{}
 
-	u := NewSyncUserUseCase(source, target, "", nil, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -154,7 +163,7 @@ func TestSyncUserUseCase_Execute_TargetError(t *testing.T) {
 	source := &mockSourceRepository{users: testUsers}
 	target := &mockTargetRepository{err: expectedErr}
 
-	u := NewSyncUserUseCase(source, target, "", nil, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -194,7 +203,7 @@ func TestSyncUserUseCase_Execute_Reconciliation(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, finalFilter, excludedUsers, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -237,7 +246,7 @@ func TestSyncUserUseCase_Execute_SafetyGuard(t *testing.T) {
 	}
 
 	// 閾値を3に設定（生存者2人 < 閾値3 なのでアボートするはず）
-	u := NewSyncUserUseCase(source, target, "", nil, 3)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 3)
 
 	err := u.Execute(context.Background())
 	if err == nil {

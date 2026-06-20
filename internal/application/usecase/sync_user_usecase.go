@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"ldap-es-syncer/internal/domain/repository"
 )
@@ -18,6 +19,7 @@ type SyncUserUseCase interface {
 type syncUserUseCase struct {
 	sourceRepo    repository.SourceRepository
 	targetRepo    repository.TargetRepository
+	metricsRepo   repository.MetricsRepository
 	finalFilter   string
 	excludedUsers []string
 	syncMinUsers  int
@@ -27,6 +29,7 @@ type syncUserUseCase struct {
 func NewSyncUserUseCase(
 	sourceRepo repository.SourceRepository,
 	targetRepo repository.TargetRepository,
+	metricsRepo repository.MetricsRepository,
 	finalFilter string,
 	excludedUsers []string,
 	syncMinUsers int,
@@ -34,6 +37,7 @@ func NewSyncUserUseCase(
 	return &syncUserUseCase{
 		sourceRepo:    sourceRepo,
 		targetRepo:    targetRepo,
+		metricsRepo:   metricsRepo,
 		finalFilter:   finalFilter,
 		excludedUsers: excludedUsers,
 		syncMinUsers:  syncMinUsers,
@@ -41,8 +45,14 @@ func NewSyncUserUseCase(
 }
 
 // Execute は同期の実行フローを制御します。
-func (u *syncUserUseCase) Execute(ctx context.Context) error {
-	// 1. [可視化ログ] FinalFilterを出力
+func (u *syncUserUseCase) Execute(ctx context.Context) (err error) {
+	start := time.Now()
+	defer func() {
+		u.metricsRepo.RecordSyncDuration(time.Since(start))
+		u.metricsRepo.RecordSyncStatus(err == nil)
+	}()
+
+	// 1. [可観測ログ] FinalFilterを出力
 	slog.Info("Starting user synchronization pipeline", slog.String("final_filter", u.finalFilter))
 
 	if err := ctx.Err(); err != nil {
@@ -132,6 +142,10 @@ func (u *syncUserUseCase) Execute(ctx context.Context) error {
 		slog.Int("processed_count", processedCount),
 		slog.Int("total_active_users", len(users)),
 	)
+
+	// メトリクスの記録 (成功時)
+	u.metricsRepo.RecordProcessedUsers(processedCount)
+	u.metricsRepo.RecordActiveUsers(len(users))
 
 	return nil
 }
