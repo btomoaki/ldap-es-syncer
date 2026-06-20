@@ -10,9 +10,11 @@ services:
     ports:
       - "389:389"
       - "636:636"
+    command: --copy-service --loglevel debug
     volumes:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
+      - ./test/ldap:/container/service/slapd/assets/config/bootstrap/ldif/custom:ro
     networks:
       - syncer-net
 

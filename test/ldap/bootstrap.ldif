@@ -1,0 +1,176 @@
+# Root definition is usually handled by OpenLDAP image, but we define our OU and entries.
+
+# Create Users OU
+dn: ou=users,dc=example,dc=org
+objectClass: organizationalUnit
+ou: users
+
+# Create Groups OU
+dn: ou=groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: groups
+
+# ==========================================================
+# Test Users
+# ==========================================================
+
+# User 1: John Doe (Admin)
+dn: uid=john.doe,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: John Doe
+sn: Doe
+uid: john.doe
+mail: john.doe@example.org
+userPassword: password123
+
+# User 2: Jane Smith (User)
+dn: uid=jane.smith,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Jane Smith
+sn: Smith
+uid: jane.smith
+mail: jane.smith@example.org
+userPassword: password456
+
+# User 3: Alice Jones (User)
+dn: uid=alice.jones,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Alice Jones
+sn: Jones
+uid: alice.jones
+mail: alice.jones@example.org
+userPassword: password789
+
+# User 4: Bob Brown (Admin)
+dn: uid=bob.brown,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Bob Brown
+sn: Brown
+uid: bob.brown
+mail: bob.brown@example.org
+userPassword: passwordabc
+
+# User 5: Charlie Green (User)
+dn: uid=charlie.green,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Charlie Green
+sn: Green
+uid: charlie.green
+mail: charlie.green@example.org
+userPassword: passworddef
+
+# User 6: David White (User)
+dn: uid=david.white,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: David White
+sn: White
+uid: david.white
+mail: david.white@example.org
+userPassword: passwordghi
+
+# User 7: Eva Black (User)
+dn: uid=eva.black,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Eva Black
+sn: Black
+uid: eva.black
+mail: eva.black@example.org
+userPassword: passwordjkl
+
+# User 8: Frank Grey (ReadOnly)
+dn: uid=frank.grey,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Frank Grey
+sn: Grey
+uid: frank.grey
+mail: frank.grey@example.org
+userPassword: passwordmno
+
+# User 9: Grace Silver (ReadOnly)
+dn: uid=grace.silver,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Grace Silver
+sn: Silver
+uid: grace.silver
+mail: grace.silver@example.org
+userPassword: passwordpqr
+
+# User 10: Henry Gold (ReadOnly)
+dn: uid=henry.gold,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Henry Gold
+sn: Gold
+uid: henry.gold
+mail: henry.gold@example.org
+userPassword: passwordstu
+
+# User 11: Solo Player (Not in any group)
+dn: uid=solo.player,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Solo Player
+sn: Player
+uid: solo.player
+mail: solo.player@example.org
+userPassword: password999
+
+# ==========================================================
+# Groups & Role Mappings
+# ==========================================================
+
+# 1. Admin Group
+dn: cn=app_admin,ou=groups,dc=example,dc=org
+objectClass: groupOfUniqueNames
+cn: app_admin
+uniqueMember: uid=john.doe,ou=users,dc=example,dc=org
+uniqueMember: uid=bob.brown,ou=users,dc=example,dc=org
+
+# 2. User Group
+dn: cn=app_user,ou=groups,dc=example,dc=org
+objectClass: groupOfUniqueNames
+cn: app_user
+uniqueMember: uid=jane.smith,ou=users,dc=example,dc=org
+uniqueMember: uid=alice.jones,ou=users,dc=example,dc=org
+uniqueMember: uid=charlie.green,ou=users,dc=example,dc=org
+uniqueMember: uid=david.white,ou=users,dc=example,dc=org
+uniqueMember: uid=eva.black,ou=users,dc=example,dc=org
+
+# 3. ReadOnly Group
+dn: cn=app_readonly,ou=groups,dc=example,dc=org
+objectClass: groupOfUniqueNames
+cn: app_readonly
+uniqueMember: uid=frank.grey,ou=users,dc=example,dc=org
+uniqueMember: uid=grace.silver,ou=users,dc=example,dc=org
+uniqueMember: uid=henry.gold,ou=users,dc=example,dc=org

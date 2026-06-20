@@ -347,3 +347,28 @@ Prometheus による同期処理の監視に対応するため、メトリクス
 - `grafana/provisioning/dashboards/dashboard.yml` (削除)
 - `grafana/dashboards/ldap_es_syncer_dashboard.json` (削除)
 - `prompt_history.md` (変更)
+
+---
+
+## [2026-06-21] ステップ16: ドキュメント作成（README.md）と検証データ（bootstrap.ldif）の整備
+
+### 概要
+新規開発環境への移行や結合テスト実行のために、アプリケーション概要・環境構築手順をまとめた `README.md` の作成、およびローカル OpenLDAP 起動時に自動でインポートされるテスト用の初期ユーザーデータ（`test/ldap/bootstrap.ldif`）の整備を行う。
+
+### 決定事項
+- **README.md の作成**:
+  - アーキテクチャの概要（クリーンアーキテクチャ、Ports & Adapters構成、デーモン/ワンオフ動作モード）の説明。
+  - クイックスタート手順（Docker Composeによるミドルウェア起動 $\rightarrow$ Goアプリ起動）の明記。
+  - 全環境変数のネームスペース（`APP_`, `SYNC_`, 外部ミドルウェア公式変数等）による分類と詳細な説明。
+- **bootstrap.ldif の整備**:
+  - `test/ldap/bootstrap.ldif` を新設し、同期用テストユーザー（`john.doe`, `jane.smith` 等）を定義。さらに、グループ・ロール設計に基づき `ou=groups` 配下に `app_admin`, `app_user`, `app_readonly` のグループ（`groupOfUniqueNames`）を定義し、ユーザーDNを `uniqueMember` 属性で紐付ける。
+  - `compose.yml` 内の OpenLDAP サービスにボリュームマウント設定を追加し、コンテナの初期化時にテストデータが自動的にロードされるよう設定。
+- **LDAP_FILTER のグループ対応**:
+  - `.env` の `LDAP_FILTER` を、上記グループ（ロール）に所属するユーザーのみを同期対象とするフィルター（`memberOf` 属性を用いたOR条件）に更新し、同期スコープを特定システムに関連するユーザーに限定する。
+
+### 作成・変更ファイル
+- `prompt_history.md` (変更)
+- `README.md` (新規)
+- `test/ldap/bootstrap.ldif` (新規)
+- `compose.yml` (変更)
+- `.env` (変更)
