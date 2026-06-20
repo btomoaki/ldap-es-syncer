@@ -313,3 +313,37 @@ Prometheus による同期処理の監視に対応するため、メトリクス
 - `grafana/provisioning/dashboards/dashboard.yml` (新規)
 - `grafana/dashboards/ldap_es_syncer_dashboard.json` (新規)
 - `prompt_history.md` (変更)
+
+---
+
+## [2026-06-21] ステップ15: テスト・検証用アセットのディレクトリ整理と Docker 構成の追加
+
+### 概要
+テスト・検証環境で使用する各種設定ファイルがプロジェクトルートに散在して散らかってきたため、`test/` ディレクトリを導入して整理整頓を行う。また、同期アプリケーションのコンテナイメージ構築のために、マルチステージビルドによる `Dockerfile` およびローカル検証用のビルドスクリプトを追加し、Docker環境を整備する。
+
+### 決定事項
+- **検証アセット用フォルダの定義**: `test/monitoring/` ディレクトリを作成し、監視関係の設定ファイルをすべてそこに移動。
+  - `prometheus/` -> `test/monitoring/prometheus/`
+  - `grafana/` -> `test/monitoring/grafana/`
+- **Compose設定のパス更新**: `compose.yml` 内の Prometheus および Grafana のマウントボリュームパスを、移動先の `test/monitoring/...` パスに書き換えて整合性を保つ。
+- **Dockerfile / .dockerignore の配置**: 標準Goプロジェクトレイアウト（Standard Go Project Layout）に準拠し、プロジェクトルートをクリーンにするため `build/package/` ディレクトリを新設し、`Dockerfile` と `.dockerignore` をそこに配置。
+- **ビルド・検証スクリプトの作成**: `scripts/build-docker.sh` を追加し、`-f build/package/Dockerfile` を指定してビルドを行うことで、ローカルレジストリへのプッシュや Kind クラスラーへのロード手順を自動化・案内できるように整備。
+
+### 作成・変更ファイル
+- `compose.yml` (変更)
+- `build/package/Dockerfile` (新規)
+- `build/package/.dockerignore` (新規)
+- `scripts/build-docker.sh` (新規)
+- `test/monitoring/prometheus/prometheus.yml` (新規)
+- `test/monitoring/prometheus/alert.rules` (新規)
+- `test/monitoring/prometheus/alert-test.rules` (新規)
+- `test/monitoring/grafana/provisioning/datasources/datasource.yml` (新規)
+- `test/monitoring/grafana/provisioning/dashboards/dashboard.yml` (新規)
+- `test/monitoring/grafana/dashboards/ldap_es_syncer_dashboard.json` (新規)
+- `prometheus/prometheus.yml` (削除)
+- `prometheus/alert.rules` (削除)
+- `prometheus/alert-test.rules` (削除)
+- `grafana/provisioning/datasources/datasource.yml` (削除)
+- `grafana/provisioning/dashboards/dashboard.yml` (削除)
+- `grafana/dashboards/ldap_es_syncer_dashboard.json` (削除)
+- `prompt_history.md` (変更)
