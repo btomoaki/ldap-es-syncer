@@ -1,0 +1,110 @@
+# Default values for ldap-es-syncer.
+
+# replicaCount is only used if sync.daemonMode is true
+replicaCount: 1
+
+image:
+  registry: ""
+  repository: ldap-es-syncer
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# hostAliases allows mapping hostnames to IP addresses.
+# Useful for hybrid local setups where LDAP/ES run on Docker Compose/host.
+hostAliases: []
+#  - ip: "172.17.0.1"
+#    hostnames:
+#    - "localhost"
+#    - "elasticsearch"
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Sync Config
+sync:
+  daemonMode: true
+  interval: "1h"
+  minUsers: 1
+  env: "production"
+  logLevel: "info"
+
+# Metrics Configuration (Prometheus)
+metrics:
+  enabled: false
+  port: 8081
+  pushgatewayUrl: ""
+  # Annotations for Prometheus scraping if daemonMode is true
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8081"
+    prometheus.io/path: "/metrics"
+
+# LDAP Configuration
+ldap:
+  url: "ldap://localhost:389"
+  bindDn: "cn=admin,dc=example,dc=org"
+  password: "admin"
+  baseDn: "dc=example,dc=org"
+  skipVerify: false
+  # Advanced LDAP settings
+  activeUser: "(userPassword=*)"
+  filter: "(&(objectClass=inetOrgPerson)(|(memberOf=cn=app_admin,ou=groups,dc=example,dc=org)(memberOf=cn=app_user,ou=groups,dc=example,dc=org)(memberOf=cn=app_readonly,ou=groups,dc=example,dc=org))({LDAP_ACTIVE_USER}))"
+  mapping:
+    uid: "uid"
+    username: "cn"
+    email: "mail"
+
+# Elasticsearch Configuration
+elasticsearch:
+  addresses: "http://localhost:9200"
+  username: "elastic"
+  password: "adminpassword"
+  indexName: "users"
+  excludedUsers: "elastic,kibana_system,logstash_system,beats_system,apm_system,fleet_server_system"
+  maxResults: 1000
+
+# CronJob Specific Config (only used if sync.daemonMode is false)
+cronjob:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  restartPolicy: OnFailure
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1

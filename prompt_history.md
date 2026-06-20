@@ -372,3 +372,33 @@ Prometheus による同期処理の監視に対応するため、メトリクス
 - `test/ldap/bootstrap.ldif` (新規)
 - `compose.yml` (変更)
 - `.env` (変更)
+
+---
+
+## [2026-06-21] ステップ17: デプロイ・パッケージング関連 (Deployment & Packaging) - Helm Chart の作成
+
+### 概要
+Kubernetes 環境へアプリケーションをデプロイ・運用できるように、アプリケーションの Helm Chart（Deployment, Secret, ConfigMap, CronJob 構成等）の整備を行う。また、プライベートレジストリ等に対応するため `image.registry` パラメータを導入し、`values.yaml` から Docker レジストリを動的に指定できるように拡張する。
+
+### 決定事項
+- **Helm Chart 構成の標準化**: `deploy/helm/ldap-es-syncer` ディレクトリ内に標準的な Helm Chart 構造を構築。
+- **動作モードに応じたテンプレート対応**:
+  - `SYNC_DAEMON_MODE` が `true` の場合は常駐型（`Deployment`）で動作。
+  - `SYNC_DAEMON_MODE` が `false` の場合は定期実行バッチ型（`CronJob`）で動作するよう、`values.yaml` の値に応じて自動でリソース定義を切り替える設計。
+- **環境変数のマッピングと機密情報管理**:
+  - `.env` で使用している各設定項目を `values.yaml` で管理。
+  - パスワードなどの機密情報は Kubernetes `Secret` を通じて安全にコンテナへ注入。
+  - その他の設定値は `ConfigMap` を通じてマッピング。
+- **Dockerイメージ取得元（レジストリ）設定の追加**:
+  - `values.yaml` の `image` セクションに `registry` キーを追加（デフォルト値は空 `""`）。
+  - `deployment.yaml` および `cronjob.yaml` 内のイメージ参照部（`image:`）にて、`image.registry` が指定されている場合はレジストリ名を含めてフルパス（`registry/repository:tag`）とし、未指定の場合はリポジトリ名のみ（`repository:tag`）にする条件分岐ロジックを実装。
+
+### 作成・変更ファイル
+- `prompt_history.md` (変更)
+- `deploy/helm/ldap-es-syncer/Chart.yaml` (新規)
+- `deploy/helm/ldap-es-syncer/values.yaml` (新規)
+- `deploy/helm/ldap-es-syncer/templates/configmap.yaml` (新規)
+- `deploy/helm/ldap-es-syncer/templates/secret.yaml` (新規)
+- `deploy/helm/ldap-es-syncer/templates/deployment.yaml` (新規)
+- `deploy/helm/ldap-es-syncer/templates/cronjob.yaml` (新規)
+- `deploy/helm/ldap-es-syncer/templates/_helpers.tpl` (新規)

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ldap-es-syncer.fullname" . }}
+  labels:
+    {{- include "ldap-es-syncer.labels" . | nindent 4 }}
+data:
+  APP_ENV: {{ .Values.sync.env | quote }}
+  APP_LOG_LEVEL: {{ .Values.sync.logLevel | quote }}
+  SYNC_DAEMON_MODE: {{ .Values.sync.daemonMode | quote }}
+  SYNC_INTERVAL: {{ .Values.sync.interval | quote }}
+  SYNC_MIN_USERS: {{ .Values.sync.minUsers | quote }}
+  METRICS_ENABLED: {{ .Values.metrics.enabled | quote }}
+  METRICS_PORT: {{ .Values.metrics.port | quote }}
+  METRICS_PUSHGATEWAY_URL: {{ .Values.metrics.pushgatewayUrl | quote }}
+  LDAP_URL: {{ .Values.ldap.url | quote }}
+  LDAP_BIND_DN: {{ .Values.ldap.bindDn | quote }}
+  LDAP_BASE_DN: {{ .Values.ldap.baseDn | quote }}
+  LDAP_SKIP_VERIFY: {{ .Values.ldap.skipVerify | quote }}
+  LDAP_ACTIVE_USER: {{ .Values.ldap.activeUser | quote }}
+  LDAP_FILTER: {{ .Values.ldap.filter | quote }}
+  LDAP_MAP_UID: {{ .Values.ldap.mapping.uid | quote }}
+  LDAP_MAP_USERNAME: {{ .Values.ldap.mapping.username | quote }}
+  LDAP_MAP_EMAIL: {{ .Values.ldap.mapping.email | quote }}
+  ES_ADDRESSES: {{ .Values.elasticsearch.addresses | quote }}
+  ES_USERNAME: {{ .Values.elasticsearch.username | quote }}
+  ES_INDEX_NAME: {{ .Values.elasticsearch.indexName | quote }}
+  ES_EXCLUDED_USERS: {{ .Values.elasticsearch.excludedUsers | quote }}
+  ES_MAX_RESULTS: {{ .Values.elasticsearch.maxResults | quote }}
