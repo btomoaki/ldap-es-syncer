@@ -402,3 +402,25 @@ Kubernetes 環境へアプリケーションをデプロイ・運用できるよ
 - `deploy/helm/ldap-es-syncer/templates/deployment.yaml` (新規)
 - `deploy/helm/ldap-es-syncer/templates/cronjob.yaml` (新規)
 - `deploy/helm/ldap-es-syncer/templates/_helpers.tpl` (新規)
+
+---
+
+## [2026-06-21] ステップ18: 結合テスト（GoによるE2E統合テストおよびKindハイブリッドテスト）の実装
+
+### 概要
+ローカルで起動している OpenLDAP および Elasticsearch に対するGo言語ベースのE2E統合テスト、およびKind上で同期アプリを動かしてホスト側のミドルウェアに接続するKubernetesハイブリッド結合テストの整備。
+
+### 決定事項
+- **GoによるE2E統合テストの実装**:
+  - `test/integration/integration_test.go` を作成し、ローカルの OpenLDAP と Elasticsearch に対して実際の接続と同期、論理削除、システムユーザー保護をテスト。
+  - Elasticsearch の built-in ユーザーの `metadata._reserved: true` フラグを検証するコードをテスト内に整備。
+  - テストの実行・ラップを行うシェルスクリプト `test/integration/run-integration-test.sh` を作成。
+- **Kind上でのハイブリッド結合テストの実装**:
+  - `test/integration/test-k8s-hybrid.sh` を作成し、アプリのコンテナイメージビルド、Kind へのロード、Helm によるデプロイ、CronJob からの Job 起動、ログ検証、アンインストールまでの一連のシナリオを自動化。
+  - Kind ポッドからホストの OpenLDAP / Elasticsearch に接続するため、`hostAliases` に Kind ネットワークのゲートウェイ（`172.18.0.1`）をマッピングする設定を適用。
+
+### 作成・変更ファイル
+- `prompt_history.md` (変更)
+- `test/integration/integration_test.go` (新規)
+- `test/integration/run-integration-test.sh` (新規)
+- `test/integration/test-k8s-hybrid.sh` (新規)
