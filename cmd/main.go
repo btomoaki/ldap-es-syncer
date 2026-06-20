@@ -23,10 +23,14 @@ func main() {
 	appConfig := container.GetAppConfig()
 	syncUseCase := container.GetSyncUserUseCase()
 
+	// シグナルを検知して自動でキャンセルされるベースコンテキストを作成
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	// ワンオフ（バッチ）モードの処理
 	if !appConfig.DaemonMode {
 		slog.Info("User synchronization process started (one-off mode)")
-		if err := runSingleSync(syncUseCase); err != nil {
+		if err := runSingleSync(ctx, syncUseCase); err != nil {
 			slog.Error("User synchronization failed", slog.Any("error", err))
 			os.Exit(1)
 		}
@@ -37,13 +41,9 @@ func main() {
 	// デーモン（常駐）モードの処理
 	slog.Info("User synchronization daemon starting")
 
-	// シグナルハンドリングの設定
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
 	// 初回同期実行
 	slog.Info("Running initial synchronization")
-	if err := runSingleSync(syncUseCase); err != nil {
+	if err := runSingleSync(ctx, syncUseCase); err != nil {
 		slog.Error("Initial synchronization failed", slog.Any("error", err))
 	}
 
@@ -54,22 +54,22 @@ func main() {
 
 	for {
 		select {
-		case sig := <-sigChan:
-			slog.Info("Received signal, shutting down daemon gracefully", slog.String("signal", sig.String()))
+		case <-ctx.Done():
+			slog.Info("Received signal, shutting down daemon gracefully")
 			slog.Info("User synchronization daemon stopped")
 			return
 		case <-ticker.C:
 			slog.Info("Starting periodic synchronization cycle")
-			if err := runSingleSync(syncUseCase); err != nil {
+			if err := runSingleSync(ctx, syncUseCase); err != nil {
 				slog.Error("Periodic synchronization cycle failed", slog.Any("error", err))
 			}
 		}
 	}
 }
 
-// runSingleSync はタイムアウト付きのコンテキストで1回分の同期処理を実行します。
-func runSingleSync(syncUseCase usecase.SyncUserUseCase) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// runSingleSync は親コンテキストから派生したタイムアウト付きコンテキストで1回分の同期処理を実行します。
+func runSingleSync(ctx context.Context, syncUseCase usecase.SyncUserUseCase) error {
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return syncUseCase.Execute(ctx)
+	return syncUseCase.Execute(runCtx)
 }

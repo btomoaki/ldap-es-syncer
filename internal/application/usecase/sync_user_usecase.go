@@ -45,16 +45,28 @@ func (u *syncUserUseCase) Execute(ctx context.Context) error {
 	// 1. [可視化ログ] FinalFilterを出力
 	slog.Info("Starting user synchronization pipeline", slog.String("final_filter", u.finalFilter))
 
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("synchronization aborted before start: %w", err)
+	}
+
 	// 2. [ES全件取得]
 	existingIDs, err := u.targetRepo.GetAllUserIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve existing user IDs from target: %w", err)
 	}
 
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("synchronization aborted after target check: %w", err)
+	}
+
 	// 3. [LDAP生存者取得]
 	users, err := u.sourceRepo.FetchUsers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch users from source: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("synchronization aborted after source fetch: %w", err)
 	}
 
 	// 3.5 [セーフティガード] 取得したユーザー数が閾値未満の場合は同期をアボート
@@ -67,6 +79,9 @@ func (u *syncUserUseCase) Execute(ctx context.Context) error {
 
 	// 4. [生存者 Upsert]
 	for _, user := range users {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("synchronization aborted during user upsert: %w", err)
+		}
 		user.IsActive = true // LDAP生存者は明示的に有効
 		if err := u.targetRepo.SaveUser(ctx, user); err != nil {
 			return fmt.Errorf("failed to save active user %s (ID: %s) to target: %w", user.Username, user.ID, err)
@@ -87,6 +102,9 @@ func (u *syncUserUseCase) Execute(ctx context.Context) error {
 
 	// 5. [論理削除処理]
 	for _, existingID := range existingIDs {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("synchronization aborted during logical deactivation: %w", err)
+		}
 		if isExcluded(existingID) {
 			continue
 		}
