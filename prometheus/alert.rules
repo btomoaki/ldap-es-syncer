@@ -1,0 +1,32 @@
+groups:
+  - name: ldap-es-syncer-alerts
+    rules:
+      # Alert if the sync job fails (sync success status is 0)
+      - alert: SyncJobFailed
+        expr: ldap_es_syncer_sync_success == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LDAP to ES Syncer execution failed"
+          description: "The last user synchronization run failed. Immediate investigation is required."
+
+      # Alert if active users count drops to 0 (potential LDAP query issue or empty directory)
+      - alert: SyncNoActiveUsers
+        expr: ldap_es_syncer_active_users == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No active users synced from LDAP"
+          description: "The number of active users synchronized is 0. This might indicate an issue with the LDAP filter or empty server."
+
+      # Alert if no push to Pushgateway has occurred for more than 2 hours (for batch mode / interval monitoring)
+      - alert: SyncJobStale
+        expr: time() - push_time_seconds{job="ldap_es_syncer"} > 7200
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Synchronization metrics are stale"
+          description: "No metrics have been pushed to Pushgateway for job 'ldap_es_syncer' in the last 2 hours. The sync service may be stopped or failing."

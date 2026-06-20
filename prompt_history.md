@@ -284,3 +284,32 @@ Prometheus による同期処理の監視に対応するため、メトリクス
 - `internal/di/di.go` (変更)
 - `cmd/main.go` (変更)
 - `prompt_history.md` (変更)
+
+---
+
+## [2026-06-21] ステップ14: 監視運用テスト環境（Pushgateway, Prometheus, Grafana）の整備
+
+### 概要
+監視の運用テストのため、`compose.yml` に Prometheus、Pushgateway、Grafana を追加。Prometheus のアラート定義および Grafana のダッシュボード設定・プロビジョニング構成を定義し、連携可能にする。
+
+### 決定事項
+- **Composeサービスの追加**: Prometheus (ポート `9090`), Pushgateway (ポート `9091`), Grafana (ポート `3000`) を `compose.yml` に追加。
+- **ポート競合の回避**: ホスト側の phpLDAPadmin のポート（`8080`）との競合を避けるため、Go アプリ側の Prometheus メトリクス公開ポートを `8080` から `8081` へ変更。
+- **アラート検証の簡易化（テスト用ルールの導入）**: 運用テスト時に何時間も待たずにアラートの発火テストができるよう、本番用の `alert.rules`（遅延検知2時間等）とは別に、即時発報・短時間で検知するテスト用ルールファイル `alert-test.rules`（遅延検知2分等）を作成。
+- **マウントファイルの環境変数化**: `.env` に `ALERT_RULES_FILE` を導入し、`compose.yml` の Prometheus マウント設定で動的にルールファイルを切り替えられるように設計。
+- **Prometheusの設定定義**:
+  - `prometheus.yml` にて `prometheus` 自身および `pushgateway` のスクレイプ設定（`honor_labels: true` 付き）を定義。
+- **Grafanaのプロビジョニング自動化**:
+  - データソース (`datasource.yml`) に Prometheus を自動登録。
+  - ダッシュボードのプロビジョニング (`dashboard.yml` と JSON定義ファイル) により、起動時に ldap-es-syncer 監視用ダッシュボードを自動で読み込み表示可能にする。
+
+### 作成・変更ファイル
+- `.env` (変更)
+- `compose.yml` (変更)
+- `prometheus/prometheus.yml` (新規)
+- `prometheus/alert.rules` (新規)
+- `prometheus/alert-test.rules` (新規)
+- `grafana/provisioning/datasources/datasource.yml` (新規)
+- `grafana/provisioning/dashboards/dashboard.yml` (新規)
+- `grafana/dashboards/ldap_es_syncer_dashboard.json` (新規)
+- `prompt_history.md` (変更)
