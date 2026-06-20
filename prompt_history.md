@@ -424,3 +424,19 @@ Kubernetes 環境へアプリケーションをデプロイ・運用できるよ
 - `test/integration/integration_test.go` (新規)
 - `test/integration/run-integration-test.sh` (新規)
 - `test/integration/test-k8s-hybrid.sh` (新規)
+
+---
+
+## [2026-06-21] ステップ19: 結合テストに関するドキュメント（README.md）の追加・更新
+
+### 概要
+新しく追加されたGo言語ベースのE2E統合テスト、およびKindを用いたKubernetesハイブリッド結合テストの実行手順・詳細説明を `README.md` に追加。
+
+### 決定事項
+- **README.md の更新**:
+  - `README.md` に「結合テスト（Integration Testing）」セクションを新設。
+  - ローカルGoテスト（`run-integration-test.sh`）および Kubernetesハイブリッドテスト（`test-k8s-hybrid.sh`）の前提条件、実行手順、および挙動の解説を追加。
+
+### 作成・変更ファイル
+- `prompt_history.md` (変更)
+- `README.md` (変更)
