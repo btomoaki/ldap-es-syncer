@@ -1,0 +1,1 @@
+/mnt/g/マイドライブ/00_Antigravity_Notes/ldap-es-syncer/GEMINI.md
