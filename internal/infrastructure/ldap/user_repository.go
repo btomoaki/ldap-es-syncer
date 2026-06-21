@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 
 	"ldap-es-syncer/internal/domain/model"
 	"ldap-es-syncer/internal/domain/repository"
@@ -48,7 +49,7 @@ func (r *LdapUserRepository) FetchUsers(ctx context.Context) ([]*model.User, err
 		r.cfg.BaseDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		r.cfg.FinalFilter,
-		[]string{"dn", r.cfg.MapUsername, r.cfg.MapEmail, r.cfg.MapUID, "userPassword"},
+		[]string{"dn", r.cfg.MapUsername, r.cfg.MapEmail, r.cfg.MapUID, "userPassword", "memberOf"},
 		nil,
 	)
 
@@ -69,12 +70,38 @@ func (r *LdapUserRepository) FetchUsers(ctx context.Context) ([]*model.User, err
 		mail := entry.GetAttributeValue(r.cfg.MapEmail)
 		password := entry.GetAttributeValue("userPassword")
 
+		// memberOf属性から所属グループ（ロール候補）を抽出
+		var rawGroups []string
+		for _, groupDN := range entry.GetAttributeValues("memberOf") {
+			groupName := parseGroupName(groupDN)
+			if groupName != "" {
+				rawGroups = append(rawGroups, groupName)
+			}
+		}
+
 		// ドメインモデルのコンストラクタを呼び出す
 		user := model.NewUser(uid, cn, mail, password)
+		user.Roles = rawGroups
 		// LDAP生存者は明示的に有効とみなす
 		user.IsActive = true
 		users = append(users, user)
 	}
 
 	return users, nil
+}
+
+// parseGroupName はグループDNからCN値（グループ名）を抽出します。
+func parseGroupName(groupDN string) string {
+	parsed, err := ldap.ParseDN(groupDN)
+	if err != nil {
+		return ""
+	}
+	for _, rdn := range parsed.RDNs {
+		for _, attr := range rdn.Attributes {
+			if strings.EqualFold(attr.Type, "cn") {
+				return attr.Value
+			}
+		}
+	}
+	return ""
 }

@@ -29,9 +29,11 @@ func (m *mockSourceRepository) FetchUsers(ctx context.Context) ([]*model.User, e
 type mockTargetRepository struct {
 	savedUsers    []*model.User
 	existingUsers map[string]*model.User
+	existingRoles []string
 	err           error
 	getAllErr     error
 	getErr        error
+	roleErr       error
 }
 
 func (m *mockTargetRepository) SaveUser(ctx context.Context, user *model.User) error {
@@ -81,13 +83,38 @@ func (m *mockTargetRepository) GetUser(ctx context.Context, id string) (*model.U
 	return &copyUser, nil
 }
 
-// mockMetricsRepository は MetricsRepository のテストモックです。
-type mockMetricsRepository struct{}
+func (m *mockTargetRepository) RoleExists(ctx context.Context, role string) (bool, error) {
+	if m.roleErr != nil {
+		return false, m.roleErr
+	}
+	for _, r := range m.existingRoles {
+		if r == role {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
-func (m *mockMetricsRepository) RecordSyncDuration(duration time.Duration) {}
-func (m *mockMetricsRepository) RecordProcessedUsers(count int)           {}
-func (m *mockMetricsRepository) RecordActiveUsers(count int)              {}
-func (m *mockMetricsRepository) RecordSyncStatus(success bool)            {}
+// mockMetricsRepository は MetricsRepository のテストモックです。
+type mockMetricsRepository struct {
+	durationRecorded  bool
+	processedRecorded bool
+	activeRecorded    bool
+	statusRecorded    bool
+}
+
+func (m *mockMetricsRepository) RecordSyncDuration(duration time.Duration) {
+	m.durationRecorded = true
+}
+func (m *mockMetricsRepository) RecordProcessedUsers(count int) {
+	m.processedRecorded = true
+}
+func (m *mockMetricsRepository) RecordActiveUsers(count int) {
+	m.activeRecorded = true
+}
+func (m *mockMetricsRepository) RecordSyncStatus(success bool) {
+	m.statusRecorded = true
+}
 
 func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 	testUsers := []*model.User{
@@ -110,7 +137,7 @@ func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1, false)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -142,7 +169,7 @@ func TestSyncUserUseCase_Execute_SourceError(t *testing.T) {
 	source := &mockSourceRepository{err: expectedErr}
 	target := &mockTargetRepository{}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -163,7 +190,7 @@ func TestSyncUserUseCase_Execute_TargetError(t *testing.T) {
 	source := &mockSourceRepository{users: testUsers}
 	target := &mockTargetRepository{err: expectedErr}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -203,7 +230,7 @@ func TestSyncUserUseCase_Execute_Reconciliation(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1, false)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -246,7 +273,7 @@ func TestSyncUserUseCase_Execute_SafetyGuard(t *testing.T) {
 	}
 
 	// 閾値を3に設定（生存者2人 < 閾値3 なのでアボートするはず）
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 3)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 3, false)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -260,5 +287,112 @@ func TestSyncUserUseCase_Execute_SafetyGuard(t *testing.T) {
 	// 同期（保存）処理が実行されていないことを確認
 	if len(target.savedUsers) != 0 {
 		t.Errorf("expected 0 users to be saved, got %d", len(target.savedUsers))
+	}
+}
+
+func TestSyncUserUseCase_Execute_DryRun(t *testing.T) {
+	// 1. LDAP生存者: Alice (101)
+	testUsers := []*model.User{
+		model.NewUser("101", "alice", "alice@example.com", "pass123"),
+	}
+	source := &mockSourceRepository{users: testUsers}
+
+	// 2. ESの既存データ: Alice (101, active), Bob (102, active)
+	bob := model.NewUser("102", "bob", "bob@example.com", "pass456")
+	bob.IsActive = true
+	existingMap := map[string]*model.User{
+		"101": model.NewUser("101", "alice", "alice@example.com", "pass123"),
+		"102": bob,
+	}
+	target := &mockTargetRepository{
+		existingUsers: existingMap,
+	}
+	metrics := &mockMetricsRepository{}
+
+	// slog の出力を一時的にキャプチャして検証
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	// dryRun = true でユースケース作成
+	u := NewSyncUserUseCase(source, target, metrics, "", nil, 1, true)
+
+	err := u.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// 1. Dry-Runのため、書き込みが実行されていないことを確認
+	// target.savedUsers は空であるべき
+	if len(target.savedUsers) != 0 {
+		t.Errorf("expected 0 users to be saved during dry-run, got %d", len(target.savedUsers))
+	}
+
+	// Bob も deactivation されていない（保存されていない）
+	userBob, _ := target.GetUser(context.Background(), "102")
+	if !userBob.IsActive {
+		t.Error("expected Bob to remain active (deactivation skipped)")
+	}
+
+	// 2. ログに Dry-Run 固有の出力が含まれているか確認
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "[Dry-Run] Would upsert user") {
+		t.Error("expected dry-run upsert log but not found")
+	}
+	if !strings.Contains(logOutput, "[Dry-Run] Would deactivate user") {
+		t.Error("expected dry-run deactivation log but not found")
+	}
+
+	// 3. メトリクスへの記録が行われていないことを検証
+	if metrics.durationRecorded || metrics.processedRecorded || metrics.activeRecorded || metrics.statusRecorded {
+		t.Error("expected no metrics to be recorded during dry-run")
+	}
+}
+
+func TestSyncUserUseCase_Execute_RoleMapping(t *testing.T) {
+	// 1. LDAP生存者: Alice (Roles: admin, unknown_role)
+	alice := model.NewUser("101", "alice", "alice@example.com", "pass123")
+	alice.Roles = []string{"admin", "unknown_role"}
+	testUsers := []*model.User{alice}
+	source := &mockSourceRepository{users: testUsers}
+
+	// 2. ESの既存ロールとして "admin" のみを登録
+	target := &mockTargetRepository{
+		existingUsers: make(map[string]*model.User),
+		existingRoles: []string{"admin"},
+	}
+
+	// slog の出力を一時的にキャプチャして検証
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false)
+
+	err := u.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// 1. 保存された Alice に "admin" のみが割り当てられていることを確認
+	if len(target.savedUsers) != 1 {
+		t.Fatalf("expected 1 saved user, got %d", len(target.savedUsers))
+	}
+	savedAlice := target.savedUsers[0]
+	if len(savedAlice.Roles) != 1 || savedAlice.Roles[0] != "admin" {
+		t.Errorf("expected Roles to be ['admin'], got %v", savedAlice.Roles)
+	}
+
+	// 2. 存在しない "unknown_role" についての警告ログ（Warn）が出力されていることを確認
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "Role does not exist in Elasticsearch, skipping assignment") {
+		t.Error("expected warning log about missing role, but not found")
+	}
+	if !strings.Contains(logOutput, `"level":"WARN"`) {
+		t.Error("expected WARN log level for role validation skip")
 	}
 }

@@ -60,6 +60,7 @@ func NewContainer() (*Container, error) {
 		cfg.GetSourceConfig().FinalFilter,
 		cfg.GetTargetConfig().ExcludedUsers,
 		cfg.GetAppConfig().SyncMinUsers,
+		cfg.GetAppConfig().DryRun,
 	)
 
 	return &Container{

@@ -12,6 +12,7 @@ type User struct {
 	Email     string
 	IsActive  bool
 	UpdatedAt time.Time
+	Roles     []string
 }
 
 // NewUser はUser構造体を生成するコンストラクタ（ファクトリ関数）です。
@@ -28,6 +29,7 @@ func NewUser(id, username, email, password string) *User {
 		Email:     email,
 		IsActive:  isActive,
 		UpdatedAt: time.Now(),
+		Roles:     []string{},
 	}
 }
 

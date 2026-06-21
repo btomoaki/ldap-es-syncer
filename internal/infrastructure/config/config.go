@@ -25,6 +25,7 @@ type AppConfig struct {
 	MetricsEnabled        bool          // Prometheusメトリクス収集を有効にするか
 	MetricsPort           string        // Prometheusメトリクスサーバーの公開ポート (e.g., "8080")
 	MetricsPushgatewayURL string        // Prometheus Pushgatewayのプッシュ先URL (e.g., "http://localhost:9091")
+	DryRun                bool          // 実際の書き込みをスキップするDry-Runモード
 }
 
 // SourceConfig は同期元LDAPサーバーの接続設定です。
@@ -119,6 +120,12 @@ func loadAppConfig() (*AppConfig, error) {
 		return nil, fmt.Errorf("failed to parse METRICS_ENABLED: %w", err)
 	}
 
+	dryRunStr := getEnv("SYNC_DRY_RUN", "false")
+	dryRun, err := strconv.ParseBool(dryRunStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SYNC_DRY_RUN: %w", err)
+	}
+
 	return &AppConfig{
 		Env:                   getEnv("APP_ENV", "development"),
 		LogLevel:              getEnv("APP_LOG_LEVEL", "info"),
@@ -128,6 +135,7 @@ func loadAppConfig() (*AppConfig, error) {
 		MetricsEnabled:        metricsEnabled,
 		MetricsPort:           getEnv("METRICS_PORT", "8080"),
 		MetricsPushgatewayURL: getEnv("METRICS_PUSHGATEWAY_URL", ""),
+		DryRun:                dryRun,
 	}, nil
 }
 

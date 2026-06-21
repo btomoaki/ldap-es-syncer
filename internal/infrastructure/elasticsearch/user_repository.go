@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -115,7 +116,8 @@ func (r *EsUserRepository) initializeIndex(ctx context.Context) error {
 				"Username": { "type": "keyword" },
 				"Email": { "type": "keyword" },
 				"IsActive": { "type": "boolean" },
-				"UpdatedAt": { "type": "date" }
+				"UpdatedAt": { "type": "date" },
+				"Roles": { "type": "keyword" }
 			}
 		}
 	}`
@@ -218,5 +220,32 @@ func (r *EsUserRepository) GetUser(ctx context.Context, id string) (*model.User,
 	}
 
 	return &hit.Source, nil
+}
+
+// RoleExists は、指定されたロールが Elasticsearch 上に存在するかを確認します。
+func (r *EsUserRepository) RoleExists(ctx context.Context, role string) (bool, error) {
+	res, err := r.client.Security.GetRole(
+		r.client.Security.GetRole.WithContext(ctx),
+		r.client.Security.GetRole.WithName(role),
+	)
+	if err != nil {
+		return false, fmt.Errorf("elasticsearch get role request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusOK {
+		return true, nil
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
+	// セキュリティ機能が無効な場合は 405 Method Not Allowed や 400 Bad Request 等が返される
+	if res.StatusCode == http.StatusMethodNotAllowed || res.StatusCode == http.StatusBadRequest {
+		return false, fmt.Errorf("elasticsearch security API not supported or disabled (status=%d)", res.StatusCode)
+	}
+
+	body, _ := io.ReadAll(res.Body)
+	return false, fmt.Errorf("elasticsearch get role failed: status=%s, body=%s", res.Status(), string(body))
 }
 

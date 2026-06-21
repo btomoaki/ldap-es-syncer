@@ -440,3 +440,32 @@ Kubernetes 環境へアプリケーションをデプロイ・運用できるよ
 ### 作成・変更ファイル
 - `prompt_history.md` (変更)
 - `README.md` (変更)
+
+---
+
+## [2026-06-21] ステップ20: Dry-RunモードおよびKibanaロールとLDAPグループのマッピング機能の実装とテスト整備
+
+### 概要
+実際の書き込み（保存・論理削除）をスキップしてログ出力のみを行う Dry-Run モード、および LDAP グループ名と Elasticsearch/Kibana ロール名を紐付けるマッピング機能を実装。また、コンストラクタの変更等によって壊れていたテストコード（単体テストおよび結合テスト）を全面的に修正・拡充する。
+
+### 決定事項
+- **Dry-Runモードの実装**: 
+  - `SYNC_DRY_RUN`（デフォルト: `false`）を環境変数から読み込む。
+  - Dry-Runが有効な場合、保存や論理削除の書き込みは行わず、ログ出力（`[Dry-Run]` プレフィックス）のみを行う。
+  - Prometheusのメトリクス（処理件数、所要時間、アクティブユーザー数、同期ステータス）への記録も一切行わない。
+- **ロール・グループマッピング機能の追加**:
+  - LDAPの `memberOf` 属性からグループ名（CN値）を抽出し、ドメインモデル `User.Roles` に代入。
+  - Elasticsearch の Security Role Get API (`RoleExists`) を用いて、各グループ名と一致するロールがES上に存在するか確認。
+  - ロールが存在する場合はユーザーに割り当て、存在しない（またはAPIが対応していない等でエラーとなった）場合は警告（Warn）ログを出力して割り当てをスキップし、ユーザーアカウントの同期自体は継続する。
+- **テストコードの修復と拡充**:
+  - `NewSyncUserUseCase` の引数追加に伴い、ビルドエラーとなっていた `sync_user_usecase_test.go` のテストケースに `dryRun` パラメータを追加。
+  - `mockTargetRepository` に `RoleExists` のモック動作（ロール存在有無を検証できるように）を追加。
+  - Dry-Run モードの動作（書き込みスキップとメトリクス非記録）を検証するテストケースを追加。
+  - ロールマッピングと警告ログの出力を検証するテストケースを追加。
+  - 結合テスト（`integration_test.go`）なども新コンストラクタ引数に追随させる。
+
+### 作成・変更ファイル
+- `prompt_history.md` (変更)
+- `internal/application/usecase/sync_user_usecase_test.go` (変更)
+- `test/integration/integration_test.go` (変更)
+- `internal/di/di.go` (変更)

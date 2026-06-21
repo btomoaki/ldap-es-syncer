@@ -100,6 +100,7 @@ func TestIntegration_SyncPipeline(t *testing.T) {
 		cfg.Source.FinalFilter,
 		cfg.Target.ExcludedUsers,
 		cfg.App.SyncMinUsers,
+		cfg.App.DryRun,
 	)
 
 	t.Run("Initial E2E Sync from OpenLDAP to Elasticsearch", func(t *testing.T) {

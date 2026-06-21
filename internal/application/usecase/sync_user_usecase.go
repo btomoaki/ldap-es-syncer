@@ -23,6 +23,7 @@ type syncUserUseCase struct {
 	finalFilter   string
 	excludedUsers []string
 	syncMinUsers  int
+	dryRun        bool
 }
 
 // NewSyncUserUseCase はsyncUserUseCaseのコンストラクタです。
@@ -33,6 +34,7 @@ func NewSyncUserUseCase(
 	finalFilter string,
 	excludedUsers []string,
 	syncMinUsers int,
+	dryRun bool,
 ) SyncUserUseCase {
 	return &syncUserUseCase{
 		sourceRepo:    sourceRepo,
@@ -41,6 +43,7 @@ func NewSyncUserUseCase(
 		finalFilter:   finalFilter,
 		excludedUsers: excludedUsers,
 		syncMinUsers:  syncMinUsers,
+		dryRun:        dryRun,
 	}
 }
 
@@ -48,12 +51,19 @@ func NewSyncUserUseCase(
 func (u *syncUserUseCase) Execute(ctx context.Context) (err error) {
 	start := time.Now()
 	defer func() {
-		u.metricsRepo.RecordSyncDuration(time.Since(start))
-		u.metricsRepo.RecordSyncStatus(err == nil)
+		// Dry-Run時はメトリクスへの反映を行わない
+		if !u.dryRun {
+			u.metricsRepo.RecordSyncDuration(time.Since(start))
+			u.metricsRepo.RecordSyncStatus(err == nil)
+		}
 	}()
 
-	// 1. [可観測ログ] FinalFilterを出力
-	slog.Info("Starting user synchronization pipeline", slog.String("final_filter", u.finalFilter))
+	// 1. [可観測ログ] 同期開始の出力 (Dry-Run モード判定含む)
+	if u.dryRun {
+		slog.Info("Starting user synchronization pipeline (Dry-Run mode)", slog.String("final_filter", u.finalFilter))
+	} else {
+		slog.Info("Starting user synchronization pipeline", slog.String("final_filter", u.finalFilter))
+	}
 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("synchronization aborted before start: %w", err)
@@ -93,8 +103,44 @@ func (u *syncUserUseCase) Execute(ctx context.Context) (err error) {
 			return fmt.Errorf("synchronization aborted during user upsert: %w", err)
 		}
 		user.IsActive = true // LDAP生存者は明示的に有効
-		if err := u.targetRepo.SaveUser(ctx, user); err != nil {
-			return fmt.Errorf("failed to save active user %s (ID: %s) to target: %w", user.Username, user.ID, err)
+
+		// -- ロール名とLDAPグループ名のマッピング機能 --
+		var validatedRoles []string
+		for _, role := range user.Roles {
+			exists, err := u.targetRepo.RoleExists(ctx, role)
+			if err != nil {
+				// セキュリティAPI非対応（ローカル開発時の無効設定等）や接続エラー
+				slog.Warn("Elasticsearch role validation skipped (API not supported or error)",
+					slog.String("role", role),
+					slog.String("user_id", user.ID),
+					slog.String("error", err.Error()),
+				)
+				continue
+			}
+			if exists {
+				validatedRoles = append(validatedRoles, role)
+			} else {
+				// ロール名とグループ名が一致しない、または存在しない場合はWarn警告
+				slog.Warn("Role does not exist in Elasticsearch, skipping assignment",
+					slog.String("role", role),
+					slog.String("user_id", user.ID),
+				)
+			}
+		}
+		user.Roles = validatedRoles
+
+		// 保存処理
+		if u.dryRun {
+			slog.Info("[Dry-Run] Would upsert user",
+				slog.String("id", user.ID),
+				slog.String("username", user.Username),
+				slog.String("email", user.Email),
+				slog.Any("roles", user.Roles),
+			)
+		} else {
+			if err := u.targetRepo.SaveUser(ctx, user); err != nil {
+				return fmt.Errorf("failed to save active user %s (ID: %s) to target: %w", user.Username, user.ID, err)
+			}
 		}
 		activeMap[user.ID] = true
 		processedCount++
@@ -129,8 +175,12 @@ func (u *syncUserUseCase) Execute(ctx context.Context) (err error) {
 			// すでに非アクティブの場合は無駄な更新を避ける
 			if user.IsActive {
 				user.Deactivate()
-				if err := u.targetRepo.SaveUser(ctx, user); err != nil {
-					return fmt.Errorf("failed to deactivate user %s on target: %w", existingID, err)
+				if u.dryRun {
+					slog.Info("[Dry-Run] Would deactivate user", slog.String("id", existingID))
+				} else {
+					if err := u.targetRepo.SaveUser(ctx, user); err != nil {
+						return fmt.Errorf("failed to deactivate user %s on target: %w", existingID, err)
+					}
 				}
 				processedCount++
 			}
@@ -138,14 +188,21 @@ func (u *syncUserUseCase) Execute(ctx context.Context) (err error) {
 	}
 
 	// 6. ログ統計の出力
-	slog.Info("User synchronization process completed",
-		slog.Int("processed_count", processedCount),
-		slog.Int("total_active_users", len(users)),
-	)
+	if u.dryRun {
+		slog.Info("User synchronization process completed (Dry-Run mode)",
+			slog.Int("processed_count", processedCount),
+			slog.Int("total_active_users", len(users)),
+		)
+	} else {
+		slog.Info("User synchronization process completed",
+			slog.Int("processed_count", processedCount),
+			slog.Int("total_active_users", len(users)),
+		)
 
-	// メトリクスの記録 (成功時)
-	u.metricsRepo.RecordProcessedUsers(processedCount)
-	u.metricsRepo.RecordActiveUsers(len(users))
+		// メトリクスの記録 (成功時かつ非Dry-Run時)
+		u.metricsRepo.RecordProcessedUsers(processedCount)
+		u.metricsRepo.RecordActiveUsers(len(users))
+	}
 
 	return nil
 }

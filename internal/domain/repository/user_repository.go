@@ -15,4 +15,5 @@ type TargetRepository interface {
 	SaveUser(ctx context.Context, user *model.User) error
 	GetAllUserIDs(ctx context.Context) ([]string, error)
 	GetUser(ctx context.Context, id string) (*model.User, error)
+	RoleExists(ctx context.Context, role string) (bool, error)
 }
