@@ -101,6 +101,7 @@ func TestIntegration_SyncPipeline(t *testing.T) {
 		cfg.Target.ExcludedUsers,
 		cfg.App.SyncMinUsers,
 		cfg.App.DryRun,
+		cfg.App.SyncSecurityUsers,
 	)
 
 	t.Run("Initial E2E Sync from OpenLDAP to Elasticsearch", func(t *testing.T) {
@@ -226,6 +227,91 @@ func TestIntegration_SyncPipeline(t *testing.T) {
 			t.Errorf("Expected metadata._reserved to be true for built-in user 'elastic', got metadata: %v", elasticUser.Metadata)
 		} else {
 			t.Logf("Verified built-in user 'elastic' contains '_reserved: true' metadata flag successfully.")
+		}
+	})
+
+	t.Run("Security User Sync and Login Authentication Verification", func(t *testing.T) {
+		// Native ユーザー同期を強制有効化したユースケースを作成
+		secSyncUseCase := usecase.NewSyncUserUseCase(
+			sourceRepo,
+			targetRepo,
+			metricsRepo,
+			cfg.Source.FinalFilter,
+			cfg.Target.ExcludedUsers,
+			cfg.App.SyncMinUsers,
+			false, // dryRun = false
+			true,  // syncSecurityUsers = true
+		)
+
+		// 同期を実行
+		err := secSyncUseCase.Execute(ctx)
+		if err != nil {
+			t.Fatalf("Sync execution for security users failed: %v", err)
+		}
+
+		// 同期された CRYPT ハッシュ（$2a$, $2b$）のアカウントで実際にログイン可能か検証
+		testCreds := []struct {
+			username      string
+			password      string
+			expectSuccess bool
+		}{
+			{"user.crypt2a", "usr-crypt-pass1", true},
+			{"user.crypt2b", "usr-crypt-pass2", true},
+			{"user.ssha", "usr-ssha-pass3", false}, // SSHAはES未サポートのため、ログイン失敗(401)するはず
+			{"user.sha", "usr-sha-pass4", false},  // SHAもES未サポートのため、ログイン失敗(401)するはず
+		}
+
+		for _, cred := range testCreds {
+			url := fmt.Sprintf("%s/_security/_authenticate", cfg.Target.Addresses[0])
+			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+			if err != nil {
+				t.Fatalf("Failed to create authenticate request for %s: %v", cred.username, err)
+			}
+			req.SetBasicAuth(cred.username, cred.password)
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Errorf("Failed to reach authenticate API for user %s: %v", cred.username, err)
+				continue
+			}
+			defer resp.Body.Close()
+
+			// xpack securityが無効な場合は 405 Method Not Allowed 等になるため検証をスキップ
+			if resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusBadRequest {
+				t.Logf("Elasticsearch Security is disabled. Skipping authenticate check for %s.", cred.username)
+				continue
+			}
+
+			if cred.expectSuccess {
+				if resp.StatusCode != http.StatusOK {
+					body, _ := io.ReadAll(resp.Body)
+					t.Errorf("Expected authentication success for user %s, but failed: status=%d, body=%s", cred.username, resp.StatusCode, string(body))
+					continue
+				}
+
+				// レスポンスのusernameが一致することを確認
+				var authResp struct {
+					Username string `json:"username"`
+				}
+				if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+					t.Errorf("Failed to decode authenticate response for user %s: %v", cred.username, err)
+					continue
+				}
+
+				if authResp.Username != cred.username {
+					t.Errorf("Expected authenticated username %q, got %q", cred.username, authResp.Username)
+				} else {
+					t.Logf("Successfully authenticated security user %q synced with password hash!", cred.username)
+				}
+			} else {
+				// ログイン失敗（401 Unauthorized）を期待する
+				if resp.StatusCode != http.StatusUnauthorized {
+					t.Errorf("Expected authentication failure (401) for user %s, but got status=%d", cred.username, resp.StatusCode)
+				} else {
+					t.Logf("Successfully verified user %q cannot authenticate (expected status 401)", cred.username)
+				}
+			}
 		}
 	})
 }

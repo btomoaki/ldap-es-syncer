@@ -7,12 +7,13 @@ import (
 // User は同期対象のユーザーを表すドメインエンティティです。
 // 特定のインフラ技術（LDAP属性名やESフィールド名）からは完全に抽象化されています。
 type User struct {
-	ID        string
-	Username  string
-	Email     string
-	IsActive  bool
-	UpdatedAt time.Time
-	Roles     []string
+	ID           string
+	Username     string
+	Email        string
+	IsActive     bool
+	UpdatedAt    time.Time
+	Roles        []string
+	PasswordHash string
 }
 
 // NewUser はUser構造体を生成するコンストラクタ（ファクトリ関数）です。

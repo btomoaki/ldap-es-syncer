@@ -17,13 +17,14 @@ type SyncUserUseCase interface {
 
 // syncUserUseCase はSyncUserUseCaseの具象実装構造体です。
 type syncUserUseCase struct {
-	sourceRepo    repository.SourceRepository
-	targetRepo    repository.TargetRepository
-	metricsRepo   repository.MetricsRepository
-	finalFilter   string
-	excludedUsers []string
-	syncMinUsers  int
-	dryRun        bool
+	sourceRepo        repository.SourceRepository
+	targetRepo        repository.TargetRepository
+	metricsRepo       repository.MetricsRepository
+	finalFilter       string
+	excludedUsers     []string
+	syncMinUsers      int
+	dryRun            bool
+	syncSecurityUsers bool
 }
 
 // NewSyncUserUseCase はsyncUserUseCaseのコンストラクタです。
@@ -35,15 +36,17 @@ func NewSyncUserUseCase(
 	excludedUsers []string,
 	syncMinUsers int,
 	dryRun bool,
+	syncSecurityUsers bool,
 ) SyncUserUseCase {
 	return &syncUserUseCase{
-		sourceRepo:    sourceRepo,
-		targetRepo:    targetRepo,
-		metricsRepo:   metricsRepo,
-		finalFilter:   finalFilter,
-		excludedUsers: excludedUsers,
-		syncMinUsers:  syncMinUsers,
-		dryRun:        dryRun,
+		sourceRepo:        sourceRepo,
+		targetRepo:        targetRepo,
+		metricsRepo:       metricsRepo,
+		finalFilter:       finalFilter,
+		excludedUsers:     excludedUsers,
+		syncMinUsers:      syncMinUsers,
+		dryRun:            dryRun,
+		syncSecurityUsers: syncSecurityUsers,
 	}
 }
 
@@ -137,9 +140,21 @@ func (u *syncUserUseCase) Execute(ctx context.Context) (err error) {
 				slog.String("email", user.Email),
 				slog.Any("roles", user.Roles),
 			)
+			if u.syncSecurityUsers {
+				slog.Info("[Dry-Run] Would upsert security user (Native Realm)",
+					slog.String("id", user.ID),
+					slog.String("username", user.Username),
+					slog.String("password_hash_present", fmt.Sprintf("%t", user.PasswordHash != "")),
+				)
+			}
 		} else {
 			if err := u.targetRepo.SaveUser(ctx, user); err != nil {
 				return fmt.Errorf("failed to save active user %s (ID: %s) to target: %w", user.Username, user.ID, err)
+			}
+			if u.syncSecurityUsers {
+				if err := u.targetRepo.SaveSecurityUser(ctx, user); err != nil {
+					return fmt.Errorf("failed to save active security user %s (ID: %s) to target: %w", user.Username, user.ID, err)
+				}
 			}
 		}
 		activeMap[user.ID] = true
@@ -177,9 +192,17 @@ func (u *syncUserUseCase) Execute(ctx context.Context) (err error) {
 				user.Deactivate()
 				if u.dryRun {
 					slog.Info("[Dry-Run] Would deactivate user", slog.String("id", existingID))
+					if u.syncSecurityUsers {
+						slog.Info("[Dry-Run] Would deactivate security user (Native Realm)", slog.String("id", existingID))
+					}
 				} else {
 					if err := u.targetRepo.SaveUser(ctx, user); err != nil {
 						return fmt.Errorf("failed to deactivate user %s on target: %w", existingID, err)
+					}
+					if u.syncSecurityUsers {
+						if err := u.targetRepo.SaveSecurityUser(ctx, user); err != nil {
+							return fmt.Errorf("failed to deactivate security user %s on target: %w", existingID, err)
+						}
 					}
 				}
 				processedCount++

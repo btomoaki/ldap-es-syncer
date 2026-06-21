@@ -26,6 +26,7 @@ type AppConfig struct {
 	MetricsPort           string        // Prometheusメトリクスサーバーの公開ポート (e.g., "8080")
 	MetricsPushgatewayURL string        // Prometheus Pushgatewayのプッシュ先URL (e.g., "http://localhost:9091")
 	DryRun                bool          // 実際の書き込みをスキップするDry-Runモード
+	SyncSecurityUsers     bool          // Kibana/ES Nativeユーザーアカウントの同期を有効にするか
 }
 
 // SourceConfig は同期元LDAPサーバーの接続設定です。
@@ -126,6 +127,12 @@ func loadAppConfig() (*AppConfig, error) {
 		return nil, fmt.Errorf("failed to parse SYNC_DRY_RUN: %w", err)
 	}
 
+	syncSecUsersStr := getEnv("SYNC_SECURITY_USERS", "false")
+	syncSecUsers, err := strconv.ParseBool(syncSecUsersStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SYNC_SECURITY_USERS: %w", err)
+	}
+
 	return &AppConfig{
 		Env:                   getEnv("APP_ENV", "development"),
 		LogLevel:              getEnv("APP_LOG_LEVEL", "info"),
@@ -136,6 +143,7 @@ func loadAppConfig() (*AppConfig, error) {
 		MetricsPort:           getEnv("METRICS_PORT", "8080"),
 		MetricsPushgatewayURL: getEnv("METRICS_PUSHGATEWAY_URL", ""),
 		DryRun:                dryRun,
+		SyncSecurityUsers:     syncSecUsers,
 	}, nil
 }
 

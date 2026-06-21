@@ -27,13 +27,14 @@ func (m *mockSourceRepository) FetchUsers(ctx context.Context) ([]*model.User, e
 
 // mockTargetRepository は TargetRepository のテストモックです。
 type mockTargetRepository struct {
-	savedUsers    []*model.User
-	existingUsers map[string]*model.User
-	existingRoles []string
-	err           error
-	getAllErr     error
-	getErr        error
-	roleErr       error
+	savedUsers         []*model.User
+	savedSecurityUsers []*model.User
+	existingUsers      map[string]*model.User
+	existingRoles      []string
+	err                error
+	getAllErr          error
+	getErr             error
+	roleErr            error
 }
 
 func (m *mockTargetRepository) SaveUser(ctx context.Context, user *model.User) error {
@@ -95,6 +96,14 @@ func (m *mockTargetRepository) RoleExists(ctx context.Context, role string) (boo
 	return false, nil
 }
 
+func (m *mockTargetRepository) SaveSecurityUser(ctx context.Context, user *model.User) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.savedSecurityUsers = append(m.savedSecurityUsers, user)
+	return nil
+}
+
 // mockMetricsRepository は MetricsRepository のテストモックです。
 type mockMetricsRepository struct {
 	durationRecorded  bool
@@ -137,7 +146,7 @@ func TestSyncUserUseCase_Execute_Success(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1, false)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1, false, false)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -169,7 +178,7 @@ func TestSyncUserUseCase_Execute_SourceError(t *testing.T) {
 	source := &mockSourceRepository{err: expectedErr}
 	target := &mockTargetRepository{}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false, false)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -190,7 +199,7 @@ func TestSyncUserUseCase_Execute_TargetError(t *testing.T) {
 	source := &mockSourceRepository{users: testUsers}
 	target := &mockTargetRepository{err: expectedErr}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false, false)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -230,7 +239,7 @@ func TestSyncUserUseCase_Execute_Reconciliation(t *testing.T) {
 	finalFilter := "(&(objectClass=inetOrgPerson)(userPassword=*))"
 	excludedUsers := []string{"elastic", "kibana_system"}
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1, false)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, finalFilter, excludedUsers, 1, false, false)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -273,7 +282,7 @@ func TestSyncUserUseCase_Execute_SafetyGuard(t *testing.T) {
 	}
 
 	// 閾値を3に設定（生存者2人 < 閾値3 なのでアボートするはず）
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 3, false)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 3, false, false)
 
 	err := u.Execute(context.Background())
 	if err == nil {
@@ -317,7 +326,7 @@ func TestSyncUserUseCase_Execute_DryRun(t *testing.T) {
 	defer slog.SetDefault(originalLogger)
 
 	// dryRun = true でユースケース作成
-	u := NewSyncUserUseCase(source, target, metrics, "", nil, 1, true)
+	u := NewSyncUserUseCase(source, target, metrics, "", nil, 1, true, false)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -371,7 +380,7 @@ func TestSyncUserUseCase_Execute_RoleMapping(t *testing.T) {
 	slog.SetDefault(logger)
 	defer slog.SetDefault(originalLogger)
 
-	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false)
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false, false)
 
 	err := u.Execute(context.Background())
 	if err != nil {
@@ -394,5 +403,74 @@ func TestSyncUserUseCase_Execute_RoleMapping(t *testing.T) {
 	}
 	if !strings.Contains(logOutput, `"level":"WARN"`) {
 		t.Error("expected WARN log level for role validation skip")
+	}
+}
+
+func TestSyncUserUseCase_Execute_SecurityUsersSync(t *testing.T) {
+	// 1. LDAP生存者: Alice (101, Roles: ["admin"], PasswordHash: "$2a$10$xxx")
+	alice := model.NewUser("101", "alice", "alice@example.com", "pass123")
+	alice.Roles = []string{"admin"}
+	alice.PasswordHash = "$2a$10$xxx"
+	testUsers := []*model.User{alice}
+	source := &mockSourceRepository{users: testUsers}
+
+	// 2. ES既存データ: Alice (101, active), Bob (102, active)
+	bob := model.NewUser("102", "bob", "bob@example.com", "pass456")
+	bob.IsActive = true
+	existingMap := map[string]*model.User{
+		"101": model.NewUser("101", "alice", "alice@example.com", "pass123"),
+		"102": bob,
+	}
+
+	target := &mockTargetRepository{
+		existingUsers: existingMap,
+		existingRoles: []string{"admin"},
+	}
+
+	// syncSecurityUsers = true でユースケース作成
+	u := NewSyncUserUseCase(source, target, &mockMetricsRepository{}, "", nil, 1, false, true)
+
+	err := u.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// 1. セキュリティユーザーが保存されていることを確認
+	// Aliceのupsertと、Bobの非アクティブ化の2件
+	if len(target.savedSecurityUsers) != 2 {
+		t.Errorf("expected 2 saved security user operations, got %d", len(target.savedSecurityUsers))
+	}
+
+	// 保存されたAliceの検証
+	var savedAlice *model.User
+	for _, u := range target.savedSecurityUsers {
+		if u.ID == "101" {
+			savedAlice = u
+			break
+		}
+	}
+	if savedAlice == nil {
+		t.Fatal("expected Alice (101) to be saved as security user, but not found")
+	}
+	if savedAlice.PasswordHash != "$2a$10$xxx" {
+		t.Errorf("expected Alice password hash to be '$2a$10$xxx', got %q", savedAlice.PasswordHash)
+	}
+	if !savedAlice.IsActive {
+		t.Error("expected saved Alice to be active")
+	}
+
+	// 2. 非アクティブ化された Bob の検証
+	var savedBob *model.User
+	for _, u := range target.savedSecurityUsers {
+		if u.ID == "102" {
+			savedBob = u
+			break
+		}
+	}
+	if savedBob == nil {
+		t.Fatal("expected Bob (102) to be saved as security user (deactivated), but not found")
+	}
+	if savedBob.IsActive {
+		t.Error("expected saved Bob to be inactive (deactivated)")
 	}
 }

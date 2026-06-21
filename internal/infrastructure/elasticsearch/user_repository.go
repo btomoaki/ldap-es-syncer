@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -247,5 +248,51 @@ func (r *EsUserRepository) RoleExists(ctx context.Context, role string) (bool, e
 
 	body, _ := io.ReadAll(res.Body)
 	return false, fmt.Errorf("elasticsearch get role failed: status=%s, body=%s", res.Status(), string(body))
+}
+
+// SaveSecurityUser は、ElasticsearchのSecurity API (Native User) を用いてユーザーを作成または更新します。
+func (r *EsUserRepository) SaveSecurityUser(ctx context.Context, user *model.User) error {
+	roles := user.Roles
+	if roles == nil {
+		roles = []string{}
+	}
+	reqBody := map[string]interface{}{
+		"roles":     roles,
+		"email":     user.Email,
+		"full_name": user.Username,
+		"enabled":   user.IsActive,
+	}
+	if user.PasswordHash != "" && strings.HasPrefix(user.PasswordHash, "$2") {
+		reqBody["password_hash"] = user.PasswordHash
+	} else {
+		// ハッシュ形式が非互換、または存在しない場合
+		// 新規作成時にES側でパスワード未指定エラーになるのを防ぐため、ログイン不可のダミーハッシュを設定する
+		reqBody["password_hash"] = "$2a$10$00000000000000000000000000000000000000000000000000000"
+		slog.Warn("Password hash format is not supported or empty. Assigned a dummy invalid hash to prevent authentication.",
+			slog.String("user_id", user.ID),
+		)
+	}
+
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal security user body: %w", err)
+	}
+
+	res, err := r.client.Security.PutUser(
+		user.ID, // LDAPのUIDをESのユーザーID（username）として使用
+		bytes.NewReader(data),
+		r.client.Security.PutUser.WithContext(ctx),
+	)
+	if err != nil {
+		return fmt.Errorf("elasticsearch put user request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("elasticsearch put user failed: status=%s, body=%s", res.Status(), string(body))
+	}
+
+	return nil
 }
 

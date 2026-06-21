@@ -82,6 +82,7 @@ func (r *LdapUserRepository) FetchUsers(ctx context.Context) ([]*model.User, err
 		// ドメインモデルのコンストラクタを呼び出す
 		user := model.NewUser(uid, cn, mail, password)
 		user.Roles = rawGroups
+		user.PasswordHash = parseLdapPasswordHash(password)
 		// LDAP生存者は明示的に有効とみなす
 		user.IsActive = true
 		users = append(users, user)
@@ -104,4 +105,15 @@ func parseGroupName(groupDN string) string {
 		}
 	}
 	return ""
+}
+
+// parseLdapPasswordHash は `{CRYPT}$2a$...` などのハッシュから `{CRYPT}` のようなプレフィックスを除去します。
+func parseLdapPasswordHash(raw string) string {
+	if strings.HasPrefix(raw, "{") {
+		idx := strings.Index(raw, "}")
+		if idx != -1 {
+			return raw[idx+1:]
+		}
+	}
+	return raw
 }

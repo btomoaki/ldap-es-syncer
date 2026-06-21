@@ -42,8 +42,8 @@ services:
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       # ELASTIC_PASSWORD (Elastic stack official docker guidelines)
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      # ローカル開発のためにセキュリティ（SSL/TLS, 認証）を無効化
-      - xpack.security.enabled=false
+      # ローカル開発のためにセキュリティを有効化（SSLは無効のままでパスワード認証を有効にする）
+      - xpack.security.enabled=true
       - xpack.security.enrollment.enabled=false
       - xpack.security.http.ssl.enabled=false
       - xpack.security.transport.ssl.enabled=false

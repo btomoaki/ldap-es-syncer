@@ -61,6 +61,7 @@ func NewContainer() (*Container, error) {
 		cfg.GetTargetConfig().ExcludedUsers,
 		cfg.GetAppConfig().SyncMinUsers,
 		cfg.GetAppConfig().DryRun,
+		cfg.GetAppConfig().SyncSecurityUsers,
 	)
 
 	return &Container{

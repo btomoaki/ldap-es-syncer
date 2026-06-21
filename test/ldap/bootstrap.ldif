@@ -134,6 +134,54 @@ uid: henry.gold
 mail: henry.gold@example.org
 userPassword: passwordstu
 
+# User 12: Crypt2a User (CRYPT $2a$)
+dn: uid=user.crypt2a,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: User Crypt2a
+sn: Crypt2a
+uid: user.crypt2a
+mail: crypt2a@example.org
+userPassword: {CRYPT}$2a$10$cx98MydrTdUjM7wY64ac..dtJP.y5ISZdd6.S.ttbM4JTHzoQWEZq
+
+# User 13: Crypt2b User (CRYPT $2b$)
+dn: uid=user.crypt2b,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: User Crypt2b
+sn: Crypt2b
+uid: user.crypt2b
+mail: crypt2b@example.org
+userPassword: {CRYPT}$2b$10$NHPAPMMW9UE/NCcnkNX4yu544fZmaRfedyBfe442Qheh41/CMTrMu
+
+# User 14: SSHA User (SSHA)
+dn: uid=user.ssha,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: User Ssha
+sn: Ssha
+uid: user.ssha
+mail: ssha@example.org
+userPassword: {SSHA}JZR1jAbabhxWo6rEpLQem+5KbEkPYXm4
+
+# User 15: SHA User (SHA)
+dn: uid=user.sha,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: User Sha
+sn: Sha
+uid: user.sha
+mail: sha@example.org
+userPassword: {SHA}0WLI4owePpfiH0BNE2X06A5LPz4=
+
 # User 11: Solo Player (Not in any group)
 dn: uid=solo.player,ou=users,dc=example,dc=org
 objectClass: inetOrgPerson
@@ -174,3 +222,7 @@ cn: app_readonly
 uniqueMember: uid=frank.grey,ou=users,dc=example,dc=org
 uniqueMember: uid=grace.silver,ou=users,dc=example,dc=org
 uniqueMember: uid=henry.gold,ou=users,dc=example,dc=org
+uniqueMember: uid=user.crypt2a,ou=users,dc=example,dc=org
+uniqueMember: uid=user.crypt2b,ou=users,dc=example,dc=org
+uniqueMember: uid=user.ssha,ou=users,dc=example,dc=org
+uniqueMember: uid=user.sha,ou=users,dc=example,dc=org

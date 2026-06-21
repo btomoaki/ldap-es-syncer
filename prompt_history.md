@@ -469,3 +469,37 @@ Kubernetes 環境へアプリケーションをデプロイ・運用できるよ
 - `internal/application/usecase/sync_user_usecase_test.go` (変更)
 - `test/integration/integration_test.go` (変更)
 - `internal/di/di.go` (変更)
+
+---
+
+## [2026-06-21] ステップ21: Kibana/Elasticsearch ログインユーザー（Native ユーザー）と LDAP パスワードハッシュの同期機能の実装
+
+### 概要
+通常のデータインデックスへの同期に加え、Elasticsearch の Security API（Native User API）を用いて Kibana ログインアカウントを同期する機能を実装。さらに LDAP から取得した `userPassword` ハッシュ値を成形して Elasticsearch に流し込むことで、無償版（Basicライセンス）の範囲内でのパスワードログイン連携を実現する。また、テスト用パスワードの頑健性向上として、`admin` などの安易な文字列の排除と記号（`-`）・数値を含めた一意のパスワード設計（`usr-crypt-pass1`〜`usr-sha-pass4`）を適用する。
+
+### 決定事項
+- **Nativeユーザー同期モードの追加**:
+  - 設定に `SYNC_SECURITY_USERS`（デフォルト: `false`）環境変数を追加。これが `true` の場合、通常のインデックス同期に加えて、Elasticsearch 上の Native ユーザーアカウントも同期する。
+- **UserモデルとLDAPリポジトリの拡張**:
+  - `model.User` に `PasswordHash string` フィールドを追加。
+  - LDAPリポジトリで取得した `userPassword` 属性（ハッシュ値）を `User.PasswordHash` に代入。
+  - パスワードハッシュのスキーマプレフィックス（例: `{CRYPT}`）がある場合、Elasticsearch が解釈可能な形式（bcrypt等のプレフィックス）に成形して保持するロジックを実装。
+- **ESリポジトリ（TargetRepository）の拡張**:
+  - `TargetRepository` に `SaveSecurityUser` メソッドを追加。
+  - Elasticsearch の `PUT /_security/user/{username}` API を用いて、ユーザー名、パスワードハッシュ、ロールを同期。
+- **同期ユースケースの拡張**:
+  - `syncUserUseCase` で `SYNC_SECURITY_USERS` 設定が有効な場合、通常のインデックス同期ループ内（Upsertおよび論理削除ループ内）で `SaveSecurityUser` や非アクティブ化を並行して呼び出す。
+  - システムアカウント（`elastic`, `kibana_system` 等）は Security ユーザー同期の対象からも除外・保護する。
+- **テスト用パスワードの一意化・頑健化**:
+  - 各検証用ユーザーのパスワードから `admin` などの安易な文字列を排除し、記号（`-`）および数値を含めた一意なパスワード（`usr-crypt-pass1`〜`usr-sha-pass4`）に変更。それに伴い、LDAPサーバー初期化ファイル（`bootstrap.ldif`）のハッシュ値、および結合テストコード（`integration_test.go`）の認証情報を更新。
+
+### 作成・変更ファイル
+- `prompt_history.md` (変更)
+- `internal/infrastructure/config/config.go` (変更)
+- `internal/domain/model/user.go` (変更)
+- `internal/domain/repository/user_repository.go` (変更)
+- `internal/infrastructure/elasticsearch/user_repository.go` (変更)
+- `internal/application/usecase/sync_user_usecase.go` (変更)
+- `.env` (変更)
+- `test/ldap/bootstrap.ldif` (変更)
+- `test/integration/integration_test.go` (変更)
