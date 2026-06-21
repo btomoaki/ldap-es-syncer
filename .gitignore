@@ -1,1 +1,7 @@
 memo.md
+.env
+integration.test
+*.test
+*.out
+/bin/
+/dist/

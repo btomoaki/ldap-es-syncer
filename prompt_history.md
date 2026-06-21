@@ -503,3 +503,24 @@ Kubernetes 環境へアプリケーションをデプロイ・運用できるよ
 - `.env` (変更)
 - `test/ldap/bootstrap.ldif` (変更)
 - `test/integration/integration_test.go` (変更)
+
+---
+
+## [2026-06-21] ステップ22: リポジトリのクリーンアップ（テストバイナリの削除、環境変数Git追跡除外、ドキュメントの整理）
+
+### 概要
+リポジトリを本番適用に向けてクリーンな状態に整えるため、不要なテストビルドバイナリの削除、`.env` の Git 追跡解除、Go 向け標準 `.gitignore` の導入、および Helm 関連ドキュメントの再配置・整理を実施。
+
+### 決定事項
+- **テストバイナリの排除:** `integration.test` バイナリファイルを Git 管理から完全に削除。
+- **環境変数の安全な管理:** 機密情報を含む可能性がある `.env` を Git 追跡から外し、代わりに雛形として `.env.example` をコミット。
+- **.gitignore の拡充:** Go プロジェクトで一般的に発生するビルド成果物や一時ファイルを網羅するように `.gitignore` を更新。
+- **ドキュメントの整理・再配置:** ルートの `README.md` から Helm 関連の長文の手順を配し、[deploy/helm/ldap-es-syncer/README.md](file:///home/wimet/work/ldap-es-syncer/deploy/helm/ldap-es-syncer/README.md) を新設して詳細な利用方法をそこに集約。ルートからはリンクで誘導し、可読性を向上。
+
+### 作成・変更ファイル
+- `.gitignore` (変更)
+- `.env.example` (新規)
+- `integration.test` (削除)
+- `README.md` (変更)
+- `deploy/helm/ldap-es-syncer/README.md` (新規)
+- `prompt_history.md` (変更)

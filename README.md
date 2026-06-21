@@ -135,6 +135,10 @@ graph TD
 | `ES_EXCLUDED_USERS` | 論理削除から保護する Elasticsearch 内のビルトイン/システムユーザー一覧 | `elastic,kibana_system...` |
 | `ES_MAX_RESULTS` | 同期時の Elasticsearch 取得件数の上限 | `1000` |
 
+### 🔐 Native ユーザー同期（Kibana ログイン連携）の制約事項
+
+Kibana ログインユーザー（Native ユーザー）の同期およびパスワードハッシュ（SSHA非対応、bcrypt必須など）に関する重要な仕様と制約事項については、[deploy/helm/ldap-es-syncer/README.md](file:///home/wimet/work/ldap-es-syncer/deploy/helm/ldap-es-syncer/README.md#native-ユーザー同期kibana-ログイン連携の制約事項) をご参照ください。
+
 ---
 
 ## 🧪 テスト・検証アセットの利用
@@ -188,6 +192,12 @@ docker compose up -d
 ### 3. Kubernetes ハイブリッド結合テスト (Kind Hybrid K8s Test)
 アプリケーションイメージをローカルで Docker ビルドし、Helm Chart を使用して Kind（Kubernetes）環境へバッチモードで展開します。ポッドからホスト上で動作している LDAP / Elasticsearch に接続し、Job 経由での同期処理が完全に動作するかどうかを全自動でテストします。
 
+#### 実行の前提条件:
+- **Docker**: イメージのビルドおよびテスト実行（Helmコンテナの起動）に必要です。
+- **kubectl**: ローカルマシンからテスト用 Job の作成やポッドのログ検証を行うために必要です。
+- **Kubernetes クラスター**: Docker Desktop の Kubernetes 機能や `kind` クラスターなど、ローカルでビルドしたイメージ（`ldap-es-syncer:latest`）をロードして直接起動できる Kubernetes 環境が必要です。
+- **`~/.kube/config`**: 上記クラスターに接続可能な正しい Kubeconfig コンテキストがローカルマシン上に設定されている必要があります。
+
 #### 実行手順:
 ```bash
 ./test/integration/test-k8s-hybrid.sh
@@ -200,3 +210,11 @@ docker compose up -d
 3. CronJob から手動実行用の Job (`hybrid-test-job`) をトリガー。
 4. ジョブポッドの完了を待ち合わせ、ログに `User synchronization process completed` 統計情報が出力されているかをアサーション検証。
 5. Helm リリースおよびテスト Job 資源の全自動クリーンアップ。
+
+---
+
+## ☸️ Kubernetes へのデプロイ (Helm Chart)
+
+本リポジトリを用いた実環境（本番・検証用 Kubernetes クラスター）へのデプロイ用として、Helm Chart のテンプレートソースを提供しています。
+
+詳細なビルド・プッシュ手順や、`values.yaml` の各種パラメータの設定、インストール手順については [deploy/helm/ldap-es-syncer/README.md](file:///home/wimet/work/ldap-es-syncer/deploy/helm/ldap-es-syncer/README.md) をご参照ください。
