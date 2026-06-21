@@ -137,7 +137,7 @@ graph TD
 
 ### 🔐 Native ユーザー同期（Kibana ログイン連携）の制約事項
 
-Kibana ログインユーザー（Native ユーザー）の同期およびパスワードハッシュ（SSHA非対応、bcrypt必須など）に関する重要な仕様と制約事項については、[deploy/helm/ldap-es-syncer/README.md](file:///home/wimet/work/ldap-es-syncer/deploy/helm/ldap-es-syncer/README.md#native-ユーザー同期kibana-ログイン連携の制約事項) をご参照ください。
+Kibana ログインユーザー（Native ユーザー）の同期およびパスワードハッシュ（SSHA非対応、bcrypt必須など）に関する重要な仕様と制約事項については、[helm/ldap-es-syncer-constraints] をご参照ください。
 
 ---
 
@@ -217,4 +217,7 @@ docker compose up -d
 
 本リポジトリを用いた実環境（本番・検証用 Kubernetes クラスター）へのデプロイ用として、Helm Chart のテンプレートソースを提供しています。
 
-詳細なビルド・プッシュ手順や、`values.yaml` の各種パラメータの設定、インストール手順については [deploy/helm/ldap-es-syncer/README.md](file:///home/wimet/work/ldap-es-syncer/deploy/helm/ldap-es-syncer/README.md) をご参照ください。
+詳細なビルド・プッシュ手順や、`values.yaml` の各種パラメータの設定、インストール手順については [helm/ldap-es-syncer] をご参照ください。
+
+[helm/ldap-es-syncer-constraints]: /btomoaki/ldap-es-syncer/tree/main/deploy/helm/ldap-es-syncer/README.md#native-ユーザー同期kibana-ログイン連携の制約事項
+[helm/ldap-es-syncer]: /btomoaki/ldap-es-syncer/tree/main/deploy/helm/ldap-es-syncer
