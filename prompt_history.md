@@ -539,3 +539,26 @@ Kubernetes 環境へアプリケーションをデプロイ・運用できるよ
 ### 作成・変更ファイル
 - `LICENSE` (新規)
 - `prompt_history.md` (変更)
+
+---
+
+## [2026-06-21] ステップ24: 主要ミドルウェアのバージョン指定機能の追加
+
+### 概要
+`compose.yml` 内の主要ミドルウェア（OpenLDAP, phpLDAPadmin, Elasticsearch, Kibana, Prometheus, Pushgateway, Grafana）のイメージバージョンを固定値から環境変数による動的指定に変更し、バージョン管理を容易にする。
+
+### 決定事項
+- **バージョン用環境変数の導入:** `.env` および `.env.example` に各ミドルウェアのバージョンを指定する環境変数を追加。
+  - `LDAP_VERSION=1.5.0`
+  - `PHPLDAPADMIN_VERSION=0.9.0`
+  - `ELASTIC_VERSION=8.8.1`
+  - `PUSHGATEWAY_VERSION=v1.9.0`
+  - `PROMETHEUS_VERSION=v2.52.0`
+  - `GRAFANA_VERSION=10.4.2`
+- **Composeファイルの修正:** `compose.yml` の各サービスイメージ指定部分で環境変数を使用するように変更。
+
+### 作成・変更ファイル
+- `.env` (変更)
+- `.env.example` (変更)
+- `compose.yml` (変更)
+- `prompt_history.md` (変更)

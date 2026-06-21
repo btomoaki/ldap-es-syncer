@@ -1,7 +1,7 @@
 services:
   # 1. OpenLDAP サーバー
   ldap:
-    image: osixia/openldap:1.5.0
+    image: osixia/openldap:${LDAP_VERSION}
     container_name: ldap-server
     environment:
       - LDAP_ORGANISATION=${LDAP_ORGANISATION}
@@ -20,7 +20,7 @@ services:
 
   # phpLDAPadmin (LDAP管理用WebUI)
   phpldapadmin:
-    image: osixia/phpldapadmin:0.9.0
+    image: osixia/phpldapadmin:${PHPLDAPADMIN_VERSION}
     container_name: phpldapadmin
     environment:
       - PHPLDAPADMIN_LDAP_HOSTS=${PHPLDAPADMIN_LDAP_HOSTS}
@@ -32,9 +32,9 @@ services:
     networks:
       - syncer-net
 
-  # 2. Elasticsearch サーバー (Version: 8.8.1)
+  # 2. Elasticsearch サーバー
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION}
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
@@ -58,9 +58,9 @@ services:
     networks:
       - syncer-net
 
-  # Kibana (Elasticsearch管理用WebUI - Version: 8.8.1)
+  # Kibana (Elasticsearch管理用WebUI)
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.8.1
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}
     container_name: kibana
     environment:
       - ELASTICSEARCH_HOSTS=${ELASTICSEARCH_HOSTS}
@@ -75,7 +75,7 @@ services:
 
   # 3. Prometheus & Pushgateway & Grafana for Monitoring
   pushgateway:
-    image: prom/pushgateway:v1.9.0
+    image: prom/pushgateway:${PUSHGATEWAY_VERSION}
     container_name: pushgateway
     ports:
       - "9091:9091"
@@ -83,7 +83,7 @@ services:
       - syncer-net
 
   prometheus:
-    image: prom/prometheus:v2.52.0
+    image: prom/prometheus:${PROMETHEUS_VERSION}
     container_name: prometheus
     ports:
       - "9090:9090"
@@ -102,7 +102,7 @@ services:
       - syncer-net
 
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:${GRAFANA_VERSION}
     container_name: grafana
     ports:
       - "3000:3000"
