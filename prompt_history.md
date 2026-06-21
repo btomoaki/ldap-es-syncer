@@ -578,3 +578,17 @@ Kubernetes 環境へアプリケーションをデプロイ・運用できるよ
 ### 作成・変更ファイル
 - `README.md` (変更)
 - `prompt_history.md` (変更)
+
+---
+
+## [2026-06-21] ステップ26: test-k8s-hybrid.sh でのCompose未起動エラーに対する案内メッセージの追加
+
+### 概要
+Kind上での Kubernetes ハイブリッド結合テストスクリプト（`test-k8s-hybrid.sh`）の実行時、ローカルの Docker Compose ミドルウェア環境が起動していないことによる接続エラー（Connection Refused）やタイムアウトが発生した場合に、開発者に対して Docker Compose を起動するよう促すヒントメッセージを出力するように修正する。
+
+### 決定事項
+- **Compose起動の案内メッセージの追加:** テストポッド内の同期ログに `connection refused` や `dial tcp` などの接続エラー、またはタイムアウトが含まれている場合、テスト失敗時に `docker compose up -d` を実行して環境を整えるよう促すヒント（`[TIP]`）を出力する。
+
+### 作成・変更ファイル
+- `test/integration/test-k8s-hybrid.sh` (変更)
+- `prompt_history.md` (変更)

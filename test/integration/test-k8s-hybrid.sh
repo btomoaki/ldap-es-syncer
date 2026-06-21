@@ -75,6 +75,13 @@ if echo "${POD_LOGS}" | grep -q "User synchronization process completed"; then
   SUCCESS=true
 else
   echo "==> Error: Synchronization check failed inside the pod logs."
+  if echo "${POD_LOGS}" | grep -E -q "connection refused|dial tcp|timed out|context deadline exceeded"; then
+    echo "----------------------------------------------------------------------"
+    echo "  [TIP] ローカルの Docker Compose サービスが起動していない可能性があります。"
+    echo "  テストを実行する前に、以下のコマンドを実行してミドルウェア環境を準備してください："
+    echo "      docker compose up -d"
+    echo "----------------------------------------------------------------------"
+  fi
   SUCCESS=false
 fi
 
