@@ -592,3 +592,26 @@ Kind上での Kubernetes ハイブリッド結合テストスクリプト（`tes
 ### 作成・変更ファイル
 - `test/integration/test-k8s-hybrid.sh` (変更)
 - `prompt_history.md` (変更)
+
+---
+
+## [2026-06-22] ステップ27: OpenLDAP 2.6(Bitnami)への移行、pw-bcryptビルドと自動ハッシュ化(ppolicy)およびmemberofの導入
+
+### 概要
+本番環境での運用（bcryptハッシュの利用など）を想定し、OpenLDAPサーバーを 2.6 系（`bitnamilegacy/openldap:2.6.8`）へ移行。コンテナ起動時に `pw-bcrypt` モジュールを動的コンパイル・配置し、`ppolicy` Overlayを介して平文パスワードのインポート時に自動ハッシュ化を行う環境を構築。また、`memberof` Overlayを導入してグループ所属情報を動的に連動させ、さらにC/C++製モジュール起因のハッシュ値末尾のヌル文字（`\x00`）をトリムする修正をGoアプリに加える。
+
+### 決定事項
+- **OpenLDAPのカスタムビルド**: `bitnamilegacy/openldap:2.6.8` をベースとし、ビルド時に一時的に `root` にて `openldap-bcrypt` を取得・コンパイルして `pw-bcrypt.so` を追加配置する Dockerfile を作成。
+- **自動ハッシュ化(ppolicy)およびmemberofの適用**: コンテナ起動時のスクリプト `00_setup_bcrypt.sh` にて、`ppolicy.so`、`pw-bcrypt.so`、および `memberof.so` をロード。パスワードハッシュに `{BCRYPT}` を設定し、`bootstrap.ldif` を管理者Bindで自動インポートして平文パスワードを格納時に自動ハッシュ化。
+- **ヌル文字のトリム処理の追加**: `internal/infrastructure/ldap/user_repository.go` の `parseLdapPasswordHash` にて、ハッシュ値末尾のヌル文字（`\x00`）をトリムすることで Elasticsearch 側での bcrypt 解析エラーを回避。
+- **イメージ・ポートの整合性担保**: Bitnami イメージが内部的に使用するポート 1389 / 1636 に合わせて `compose.yml` のポートフォワーディングを `"389:1389"`, `"636:1636"` に修正。
+
+### 作成・変更ファイル
+- `build/ldap/Dockerfile` (新規)
+- `test/ldap/00_setup_bcrypt.sh` (新規)
+- `internal/infrastructure/ldap/user_repository.go` (変更)
+- `.env` (変更)
+- `.env.example` (変更)
+- `compose.yml` (変更)
+- `test/ldap/bootstrap.ldif` (変更)
+- `prompt_history.md` (変更)

@@ -107,8 +107,9 @@ func parseGroupName(groupDN string) string {
 	return ""
 }
 
-// parseLdapPasswordHash は `{CRYPT}$2a$...` などのハッシュから `{CRYPT}` のようなプレフィックスを除去します。
+// parseLdapPasswordHash は `{CRYPT}$2a$...` などのハッシュから `{CRYPT}` のようなプレフィックスを除去し、末尾のヌル文字（\x00）をトリムします。
 func parseLdapPasswordHash(raw string) string {
+	raw = strings.TrimRight(raw, "\x00")
 	if strings.HasPrefix(raw, "{") {
 		idx := strings.Index(raw, "}")
 		if idx != -1 {

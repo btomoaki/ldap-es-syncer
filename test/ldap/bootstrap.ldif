@@ -1,5 +1,12 @@
 # Root definition is usually handled by OpenLDAP image, but we define our OU and entries.
 
+# Create Root Domain Entry
+dn: dc=example,dc=org
+objectClass: dcObject
+objectClass: organization
+dc: example
+o: Example Org
+
 # Create Users OU
 dn: ou=users,dc=example,dc=org
 objectClass: organizationalUnit
@@ -144,7 +151,7 @@ cn: User Crypt2a
 sn: Crypt2a
 uid: user.crypt2a
 mail: crypt2a@example.org
-userPassword: {CRYPT}$2a$10$cx98MydrTdUjM7wY64ac..dtJP.y5ISZdd6.S.ttbM4JTHzoQWEZq
+userPassword: usr-crypt-pass1
 
 # User 13: Crypt2b User (CRYPT $2b$)
 dn: uid=user.crypt2b,ou=users,dc=example,dc=org
@@ -156,7 +163,7 @@ cn: User Crypt2b
 sn: Crypt2b
 uid: user.crypt2b
 mail: crypt2b@example.org
-userPassword: {CRYPT}$2b$10$NHPAPMMW9UE/NCcnkNX4yu544fZmaRfedyBfe442Qheh41/CMTrMu
+userPassword: usr-crypt-pass2
 
 # User 14: SSHA User (SSHA)
 dn: uid=user.ssha,ou=users,dc=example,dc=org
