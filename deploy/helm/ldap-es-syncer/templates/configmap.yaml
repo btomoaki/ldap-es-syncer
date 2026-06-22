@@ -27,3 +27,4 @@ data:
   ES_INDEX_NAME: {{ .Values.elasticsearch.indexName | quote }}
   ES_EXCLUDED_USERS: {{ .Values.elasticsearch.excludedUsers | quote }}
   ES_MAX_RESULTS: {{ .Values.elasticsearch.maxResults | quote }}
+  GOMEMLIMIT: {{ .Values.sync.goMemLimit | quote }}

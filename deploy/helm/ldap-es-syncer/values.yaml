@@ -44,13 +44,13 @@ hostAliases: []
 #    - "localhost"
 #    - "elasticsearch"
 
-resources: {}
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
 
 nodeSelector: {}
 
@@ -65,6 +65,7 @@ sync:
   minUsers: 1
   env: "production"
   logLevel: "info"
+  goMemLimit: "110MiB"
 
 # Metrics Configuration (Prometheus)
 metrics:

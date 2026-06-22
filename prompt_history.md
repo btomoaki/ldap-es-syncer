@@ -598,7 +598,7 @@ Kind上での Kubernetes ハイブリッド結合テストスクリプト（`tes
 ## [2026-06-22] ステップ27: OpenLDAP 2.6(Bitnami)への移行、pw-bcryptビルドと自動ハッシュ化(ppolicy)およびmemberofの導入
 
 ### 概要
-本番環境での運用（bcryptハッシュの利用など）を想定し、OpenLDAPサーバーを 2.6 系（`bitnamilegacy/openldap:2.6.8`）へ移行。コンテナ起動時に `pw-bcrypt` モジュールを動的コンパイル・配置し、`ppolicy` Overlayを介して平文パスワードのインポート時に自動ハッシュ化を行う環境を構築。また、`memberof` Overlayを導入してグループ所属情報を動的に連動させ、さらにC/C++製モジュール起因のハッシュ値末尾のヌル文字（`\x00`）をトリムする修正をGoアプリに加える。
+実環境（OpenLDAP 2.5以上など、bcryptハッシュが利用可能な環境）での運用を想定し、OpenLDAPサーバーを 2.6 系（`bitnamilegacy/openldap:2.6.8`）へ移行。コンテナ起動時に `pw-bcrypt` モジュールを動的コンパイル・配置し、`ppolicy` Overlayを介して平文パスワードのインポート時に自動ハッシュ化を行う環境を構築。また、`memberof` Overlayを導入してグループ所属情報を動的に連動させ、さらにC/C++製モジュール起因のハッシュ値末尾のヌル文字（`\x00`）をトリムする修正をGoアプリに加える。
 
 ### 決定事項
 - **OpenLDAPのカスタムビルド**: `bitnamilegacy/openldap:2.6.8` をベースとし、ビルド時に一時的に `root` にて `openldap-bcrypt` を取得・コンパイルして `pw-bcrypt.so` を追加配置する Dockerfile を作成。
@@ -614,4 +614,25 @@ Kind上での Kubernetes ハイブリッド結合テストスクリプト（`tes
 - `.env.example` (変更)
 - `compose.yml` (変更)
 - `test/ldap/bootstrap.ldif` (変更)
+- `prompt_history.md` (変更)
+
+---
+
+## [2026-06-22] ステップ28: ldap-es-syncer のメモリ制限(GOMEMLIMIT)および Helm Chart リソース制限の導入
+
+### 概要
+アプリケーションのメモリ使用量を抑制し、コンテナ環境での安定稼働（OOM Killer による強制終了防止など）を図るため、Go のメモリ制限機構である `GOMEMLIMIT` を導入し、Helm Chart における Pod の CPU/メモリの Request/Limit を設定します。
+
+### 決定事項
+- **GOMEMLIMIT の導入**:
+  - 環境変数 `GOMEMLIMIT`（デフォルト: `110MiB`）を `.env` および `.env.example` に定義。
+  - Helm Chart の `values.yaml` に `sync.goMemLimit` を追加し、`configmap.yaml` を通じて Pod 起動時の環境変数に `GOMEMLIMIT` を設定。
+- **Helm Chart リソース設定**:
+  - `values.yaml` の `resources` 定義をアンコメントし、Request (CPU 50m, メモリ 64Mi)、Limit (CPU 100m, メモリ 128Mi) のデフォルト値を設定。これにより、DaemonMode および CronJob の両ポッドにおいて適切なリソース制限が適用される。
+
+### 作成・変更ファイル
+- `.env` (変更)
+- `.env.example` (変更)
+- `deploy/helm/ldap-es-syncer/values.yaml` (変更)
+- `deploy/helm/ldap-es-syncer/templates/configmap.yaml` (変更)
 - `prompt_history.md` (変更)
